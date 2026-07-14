@@ -48,7 +48,7 @@ class Signer:
             key_id=f"{self._selector}.atk._atp.{self._domain}",
             algorithm="ed25519",
             signature=base64.b64encode(signature_bytes).decode(),
-            headers=["from", "to", "timestamp", "nonce", "type"],
+            headers=list(signable.keys()),
             timestamp=int(time.time()),
         )
 
@@ -77,6 +77,16 @@ class Verifier:
             )
 
         signable = message.signable_dict()
+
+        if set(message.signature.headers) != set(signable.keys()) or len(
+            message.signature.headers
+        ) != len(signable):
+            return VerifyResult(
+                passed=False,
+                error_code="550 5.7.28",
+                error_message="Signature headers do not match message fields",
+            )
+
         canonical_bytes = canonicalize(signable)
 
         try:

@@ -59,6 +59,58 @@ class TestSignAndVerify:
         assert result.passed is False
         assert result.error_code == "550 5.7.28"
 
+    def test_draft02_correlation_fields_are_signed(self):
+        private_key, public_key = _make_key_pair()
+        signer = Signer(private_key, "default", "example.com")
+        msg = ATPMessage.create(
+            "alice@example.com",
+            "bob@other.com",
+            {"status": "ok"},
+            message_type="response",
+            in_reply_to="req-123",
+            task_id="task-1",
+            context_id="context-1",
+        )
+
+        signed_msg = signer.sign(msg)
+
+        assert signed_msg.signature is not None
+        assert set(signed_msg.signature.headers) == set(signed_msg.signable_dict())
+        assert Verifier.verify(signed_msg, public_key).passed is True
+
+    def test_tamper_correlation_field_fails_verification(self):
+        private_key, public_key = _make_key_pair()
+        signer = Signer(private_key, "default", "example.com")
+        msg = ATPMessage.create(
+            "alice@example.com",
+            "bob@other.com",
+            {"status": "ok"},
+            message_type="response",
+            in_reply_to="req-123",
+            task_id="task-1",
+        )
+        signed_msg = signer.sign(msg)
+
+        signed_msg.task_id = "tampered-task"
+
+        result = Verifier.verify(signed_msg, public_key)
+        assert result.passed is False
+        assert result.error_code == "550 5.7.28"
+
+    def test_incomplete_signature_headers_fail_verification(self):
+        private_key, public_key = _make_key_pair()
+        signer = Signer(private_key, "default", "example.com")
+        msg = ATPMessage.create("alice@example.com", "bob@other.com", {"text": "hi"})
+        signed_msg = signer.sign(msg)
+
+        assert signed_msg.signature is not None
+        signed_msg.signature.headers.remove("payload")
+
+        result = Verifier.verify(signed_msg, public_key)
+        assert result.passed is False
+        assert result.error_code == "550 5.7.28"
+        assert result.error_message == "Signature headers do not match message fields"
+
     def test_wrong_public_key_fails_verification(self):
         private_key, _public_key = _make_key_pair()
         _, wrong_public_key = _make_key_pair()

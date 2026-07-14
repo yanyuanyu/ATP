@@ -30,7 +30,7 @@ class ATKRecord:
     version: str  # "atp1"
     algorithm: str  # "ed25519"
     public_key_b64: str  # base64-encoded raw public key
-    flags: list[str] = field(default_factory=list)  # e.g. ["s"] for revoked
+    flags: list[str] = field(default_factory=list)  # e.g. ["r"] for revoked
     expiry: Optional[int] = None  # Unix timestamp
 
     @classmethod
@@ -75,7 +75,7 @@ class ATKRecord:
 
     def is_valid(self) -> bool:
         """Return ``True`` if the key is neither revoked nor expired."""
-        if "s" in self.flags:
+        if "r" in self.flags or "s" in self.flags:
             return False
         if self.expiry is not None and self.expiry <= int(time.time()):
             return False

@@ -21,6 +21,13 @@ class TestReplayGuard:
         assert guard.check(nonce, timestamp) is True
         assert guard.check(nonce, timestamp) is False
 
+    def test_same_nonce_from_different_senders_is_allowed(self):
+        guard = ReplayGuard()
+        timestamp = int(time.time())
+        assert guard.check("shared", timestamp, sender="a@example.com") is True
+        assert guard.check("shared", timestamp, sender="b@example.com") is True
+        assert guard.check("shared", timestamp, sender="a@example.com") is False
+
     def test_expired_timestamp_returns_false(self):
         guard = ReplayGuard(max_age_seconds=300)
         nonce = str(uuid.uuid4())

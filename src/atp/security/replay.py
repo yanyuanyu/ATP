@@ -68,7 +68,7 @@ class ReplayGuard:
         self._conn.execute("DELETE FROM nonces WHERE timestamp < ?", (cutoff,))
         self._conn.commit()
 
-    def check(self, nonce: str, timestamp: int) -> bool:
+    def check(self, nonce: str, timestamp: int, sender: str = "") -> bool:
         """Returns True if fresh (not a replay), False if replay detected.
 
         Only consults the in-memory cache — does not re-read SQLite at
@@ -87,13 +87,15 @@ class ReplayGuard:
         if timestamp < now - self._max_age or timestamp > now + 60:
             return False
 
+        cache_key = f"{sender}\0{nonce}" if sender else nonce
+
         with self._lock:
             # 2. Check for replay
-            if nonce in self._cache:
+            if cache_key in self._cache:
                 return False
 
             # 3. Add nonce, evict oldest if needed
-            self._cache[nonce] = timestamp
+            self._cache[cache_key] = timestamp
             while len(self._cache) > self._max_size:
                 self._cache.popitem(last=False)
 
@@ -102,7 +104,7 @@ class ReplayGuard:
             try:
                 self._conn.execute(
                     "INSERT OR IGNORE INTO nonces (nonce, timestamp) VALUES (?, ?)",
-                    (nonce, timestamp),
+                    (cache_key, timestamp),
                 )
                 self._insert_count += 1
                 if self._insert_count >= self._prune_interval:

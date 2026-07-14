@@ -184,7 +184,9 @@ async def handle_message(request: Request) -> JSONResponse:
                 )
 
         # 5. Replay check (both local and remote)
-        if not server.replay_guard.check(message.nonce, message.timestamp):
+        if not server.replay_guard.check(
+            message.nonce, message.timestamp, sender=message.from_id
+        ):
             server.metrics.record_replay_blocked()
             return JSONResponse(
                 status_code=400,

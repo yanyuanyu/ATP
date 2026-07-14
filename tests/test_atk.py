@@ -93,7 +93,13 @@ class TestATKRecordIsValid:
         record = ATKRecord(version="atp1", algorithm="ed25519", public_key_b64="AAAA")
         assert record.is_valid() is True
 
-    def test_revoked_flag_s(self):
+    def test_revoked_flag_r(self):
+        record = ATKRecord(
+            version="atp1", algorithm="ed25519", public_key_b64="AAAA", flags=["r"]
+        )
+        assert record.is_valid() is False
+
+    def test_legacy_revoked_flag_s(self):
         record = ATKRecord(
             version="atp1", algorithm="ed25519", public_key_b64="AAAA", flags=["s"]
         )

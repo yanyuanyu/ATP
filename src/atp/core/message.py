@@ -49,11 +49,16 @@ class ATPMessage:
     to_id: str
     timestamp: int
     nonce: str  # "msg-{uuid4_hex[:12]}"
-    type: str  # always "message"
+    type: str
     payload: dict
     signature: Optional[SignatureEnvelope] = None
     cc: list[str] = field(default_factory=list)
+    in_reply_to: Optional[str] = None
+    task_id: Optional[str] = None
+    context_id: Optional[str] = None
     routing: Optional[dict] = None
+
+    VALID_TYPES = frozenset({"message", "request", "response", "event"})
 
     @classmethod
     def create(
@@ -62,16 +67,33 @@ class ATPMessage:
         to_id: str,
         payload: dict,
         cc: list[str] | None = None,
+        message_type: str = "message",
+        in_reply_to: str | None = None,
+        task_id: str | None = None,
+        context_id: str | None = None,
     ) -> "ATPMessage":
-        """Create a new ATPMessage with auto-filled timestamp, nonce, and type."""
+        """Create a new ATPMessage with protocol correlation fields."""
+        if message_type not in cls.VALID_TYPES:
+            raise MessageFormatError(
+                ATPErrorCode.INVALID_MESSAGE_FORMAT,
+                f"Unsupported message type: {message_type!r}",
+            )
+        if message_type == "response" and not in_reply_to:
+            raise MessageFormatError(
+                ATPErrorCode.INVALID_MESSAGE_FORMAT,
+                "Response messages require in_reply_to",
+            )
         return cls(
             from_id=from_id,
             to_id=to_id,
             timestamp=int(time.time()),
             nonce=f"msg-{uuid4().hex[:12]}",
-            type="message",
+            type=message_type,
             payload=payload,
             cc=cc or [],
+            in_reply_to=in_reply_to,
+            task_id=task_id,
+            context_id=context_id,
         )
 
     def to_dict(self) -> dict:
@@ -92,6 +114,12 @@ class ATPMessage:
             d["signature"] = self.signature.to_dict()
         if self.cc:
             d["cc"] = self.cc
+        if self.in_reply_to is not None:
+            d["in_reply_to"] = self.in_reply_to
+        if self.task_id is not None:
+            d["task_id"] = self.task_id
+        if self.context_id is not None:
+            d["context_id"] = self.context_id
         if self.routing is not None:
             d["routing"] = self.routing
         return d
@@ -114,6 +142,18 @@ class ATPMessage:
                     f"Missing required field: {field_name!r}",
                 )
 
+        message_type = data["type"]
+        if message_type not in cls.VALID_TYPES:
+            raise MessageFormatError(
+                ATPErrorCode.INVALID_MESSAGE_FORMAT,
+                f"Unsupported message type: {message_type!r}",
+            )
+        if message_type == "response" and not data.get("in_reply_to"):
+            raise MessageFormatError(
+                ATPErrorCode.INVALID_MESSAGE_FORMAT,
+                "Response messages require in_reply_to",
+            )
+
         signature = None
         if "signature" in data and data["signature"] is not None:
             signature = SignatureEnvelope.from_dict(data["signature"])
@@ -123,10 +163,13 @@ class ATPMessage:
             to_id=data["to"],
             timestamp=data["timestamp"],
             nonce=data["nonce"],
-            type=data["type"],
+            type=message_type,
             payload=data["payload"],
             signature=signature,
             cc=data.get("cc", []),
+            in_reply_to=data.get("in_reply_to"),
+            task_id=data.get("task_id"),
+            context_id=data.get("context_id"),
             routing=data.get("routing"),
         )
 
