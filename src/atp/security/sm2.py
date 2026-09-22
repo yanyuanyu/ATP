@@ -107,7 +107,7 @@ class SM2PrivateKey:
             scalar = int(private_value, 16)
         except ValueError as exc:
             raise ValueError("SM2 private key is not valid hexadecimal") from exc
-        if not 1 <= scalar < _N:
+        if not 1 <= scalar < _N - 1:
             raise ValueError("SM2 private key scalar is out of range")
         public_value = _normalize_public_hex(self.public_key_hex)
 
@@ -124,7 +124,9 @@ class SM2PrivateKey:
 
     @classmethod
     def generate(cls) -> "SM2PrivateKey":
-        private_hex = _secure_scalar_hex()
+        # Signing requires (1 + d) to be invertible modulo n: d != n - 1.
+        # Ephemeral signing nonces still use the full [1, n - 1] range.
+        private_hex = f"{secrets.randbelow(_N - 2) + 1:064x}"
         scalar = int(private_hex, 16)
         public_hex = sm2.CryptSM2(private_key=private_hex, public_key="")._kg(
             scalar, _CURVE["g"]

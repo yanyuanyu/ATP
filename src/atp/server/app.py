@@ -1,6 +1,7 @@
 """ATP server application — wires together all components and runs via uvicorn."""
 
 import logging
+from contextlib import asynccontextmanager
 
 import uvicorn
 from starlette.applications import Starlette
@@ -117,12 +118,16 @@ class ATPServer:
         )
 
         # Starlette app
-        self.app = Starlette(
-            routes=get_routes(),
-            on_startup=[self._on_startup],
-            on_shutdown=[self._on_shutdown],
-        )
+        self.app = Starlette(routes=get_routes(), lifespan=self._lifespan)
         self.app.state.server = self
+
+    @asynccontextmanager
+    async def _lifespan(self, app):
+        await self._on_startup()
+        try:
+            yield
+        finally:
+            await self._on_shutdown()
 
     async def _on_startup(self) -> None:
         await self.delivery_manager.start()

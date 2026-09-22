@@ -1,6 +1,8 @@
 """Low-level SM2/SM3 tests."""
 
 import pytest
+from unittest.mock import patch
+from gmssl import sm2
 from Cryptodome.Util.asn1 import DerInteger, DerSequence
 
 from atp.security.sm2 import SM2PrivateKey, SM2PublicKey, sm3_digest
@@ -80,3 +82,17 @@ def test_corrupted_private_public_pair_is_rejected():
     second = SM2PrivateKey.generate()
     with pytest.raises(ValueError, match="does not match"):
         SM2PrivateKey(first.private_key_hex, second.public_key_hex)
+
+
+def test_private_scalar_n_minus_one_is_rejected():
+    n = int(sm2.default_ecc_table['n'], 16)
+    with pytest.raises(ValueError, match='scalar is out of range'):
+        SM2PrivateKey(f'{n - 1:064x}', sm2.default_ecc_table['g'])
+
+
+def test_largest_generated_private_scalar_can_sign():
+    # Force the upper edge of the random range rather than relying on chance.
+    with patch('atp.security.sm2.secrets.randbelow', side_effect=lambda bound: bound - 1):
+        key = SM2PrivateKey.generate()
+    signature = key.sign(b'largest signing key')
+    assert key.public_key().verify(signature, b'largest signing key')
