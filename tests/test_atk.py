@@ -17,6 +17,8 @@ from atp.core.message import ATPMessage
 from atp.core.signature import Signer, VerifyResult
 from atp.discovery.dns import BaseDNSResolver, ServerInfo
 from atp.security.atk import ATKRecord, ATKVerifier
+from atp.security.sm2 import SM2PrivateKey, SM2PublicKey
+from atp.storage.keys import KeyStorage
 
 
 # ── Helpers ─────────────────────────────────────────────────────────────────
@@ -142,6 +144,21 @@ class TestATKRecordGetPublicKey:
         with pytest.raises(ATKError):
             record.get_public_key()
 
+    def test_returns_sm2_public_key(self):
+        public_key = SM2PrivateKey.generate().public_key()
+        pub_b64 = base64.b64encode(public_key.raw_bytes()).decode("ascii")
+        record = ATKRecord(version="atp1", algorithm="sm2", public_key_b64=pub_b64)
+
+        restored = record.get_public_key()
+
+        assert isinstance(restored, SM2PublicKey)
+        assert restored == public_key
+
+    def test_unknown_algorithm_raises(self):
+        record = ATKRecord(version="atp1", algorithm="rsa", public_key_b64="AAAA")
+        with pytest.raises(ATKError):
+            record.get_public_key()
+
 
 # ── ATKVerifier.parse_key_id ────────────────────────────────────────────────
 
@@ -219,6 +236,63 @@ class TestATKVerifierVerify:
         result = await verifier.verify(msg)
         assert result.passed is False
         assert result.error_code == "550 5.7.28"
+
+    async def test_verify_sm2_signed_message_passes(self):
+        private_key = SM2PrivateKey.generate()
+        pub_b64 = base64.b64encode(private_key.public_key().raw_bytes()).decode("ascii")
+        resolver = MockResolver(
+            txt_records={
+                "default.atk._atp.sender.com": f"v=atp1 k=sm2 p={pub_b64}",
+            }
+        )
+        msg = ATPMessage.create(
+            "alice@sender.com", "bob@receiver.com", {"text": "hello"}
+        )
+        Signer(private_key, "default", "sender.com").sign(msg)
+
+        result = await ATKVerifier(resolver).verify(msg)
+
+        assert result.passed is True
+
+    async def test_dns_and_envelope_algorithm_mismatch_is_rejected(self):
+        private_key = SM2PrivateKey.generate()
+        pub_b64 = base64.b64encode(private_key.public_key().raw_bytes()).decode("ascii")
+        resolver = MockResolver(
+            txt_records={
+                "default.atk._atp.sender.com": f"v=atp1 k=sm2 p={pub_b64}",
+            }
+        )
+        msg = ATPMessage.create(
+            "alice@sender.com", "bob@receiver.com", {"text": "hello"}
+        )
+        Signer(private_key, "default", "sender.com").sign(msg)
+        assert msg.signature is not None
+        msg.signature.algorithm = "ed25519"
+
+        result = await ATKVerifier(resolver).verify(msg)
+
+        assert result.passed is False
+        assert "algorithm mismatch" in result.error_message.lower()
+
+    async def test_sm2_storage_dns_signing_integration(self, tmp_path):
+        """Exercise stored key -> DNS record -> ATK verification end to end."""
+        keys = KeyStorage(tmp_path / "keys")
+        keys.generate("default", "sm2")
+        private_key = keys.load_private_key("default", "sm2")
+        pub_b64 = keys.get_public_key_b64("default", "sm2")
+        resolver = MockResolver(
+            txt_records={
+                "default.atk._atp.sender.com": f"v=atp1 k=sm2 p={pub_b64}",
+            }
+        )
+        msg = ATPMessage.create(
+            "alice@sender.com", "bob@receiver.com", {"text": "hello"}
+        )
+        Signer(private_key, "default", "sender.com").sign(msg)
+
+        result = await ATKVerifier(resolver).verify(msg)
+
+        assert result.passed is True
 
     async def test_verify_revoked_key(self):
         private_key, public_key, pub_b64 = _generate_key_pair()

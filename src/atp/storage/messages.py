@@ -37,8 +37,10 @@ class StoredMessage:
 class MessageStore:
     def __init__(self, db_path: Path):
         self._db_path = db_path
-        self._conn = sqlite3.connect(str(db_path))
+        self._conn = sqlite3.connect(str(db_path), timeout=30)
         self._conn.row_factory = sqlite3.Row
+        self._conn.execute("PRAGMA journal_mode=WAL")
+        self._conn.execute("PRAGMA busy_timeout=30000")
         self.init_db()
 
     def init_db(self) -> None:
@@ -99,6 +101,7 @@ class MessageStore:
             self._conn.commit()
             return cursor.lastrowid  # type: ignore[return-value]
         except sqlite3.IntegrityError as exc:
+            self._conn.rollback()
             raise StorageError(
                 ATPErrorCode.SERVER_ERROR,
                 f"Duplicate nonce: {message.nonce}",

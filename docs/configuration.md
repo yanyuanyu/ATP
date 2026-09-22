@@ -7,6 +7,7 @@ ATP reads configuration from `~/.atp/config.toml`:
 ```toml title="~/.atp/config.toml"
 agent_id = "mybot@example.com"
 key_selector = "default"
+key_algorithm = "sm2"
 local_mode = false
 peers_file = ""
 dns_override_file = ""
@@ -24,8 +25,8 @@ tls_key = "/path/to/key.pem"
 ~/.atp/
 ├── config.toml          # Global configuration
 ├── keys/
-│   ├── default.key      # Domain-level Ed25519 private key (PEM, used by Server to sign outgoing messages)
-│   ├── default.pub      # Domain-level Ed25519 public key (PEM, published in DNS ATK record)
+│   ├── default.sm2.key  # Domain-level SM2 private key
+│   ├── default.sm2.pub  # Domain-level SM2 public key published through ATK
 │   └── keyring.json     # Key metadata index
 ├── certs/
 │   ├── server.crt       # TLS certificate
@@ -50,6 +51,8 @@ Directories are created automatically by `atp keys generate` or `atp server star
 | `--dns-override` | — | Path to `dns_override.toml` for local ATS/ATK |
 | `--cert` | — | TLS certificate path |
 | `--key` | — | TLS private key path |
+| `--key-selector` | config `key_selector` | ATK domain-key selector |
+| `--key-algorithm` | config `key_algorithm` (`sm2`) | ATK signature algorithm |
 | `--log-level` | `INFO` | Logging level (`DEBUG`, `INFO`, `WARNING`, `ERROR`) |
 
 ### `atp agent`
@@ -89,7 +92,7 @@ Directories are created automatically by `atp keys generate` or `atp server star
 
 | Subcommand | Description |
 |-----------|-------------|
-| `generate --selector <name>` | Generate new Ed25519 key pair |
+| `generate --selector <name> [--algorithm sm2|ed25519]` | Generate a key pair (SM2 default) |
 | `show --selector <name> [--public]` | Display key information |
 | `list` | List all key pairs |
 | `rotate --old-selector <old> --new-selector <new>` | Generate new key, keep old |
@@ -174,7 +177,7 @@ Simulates DNS TXT records for local ATS/ATK verification:
 record = "v=atp1 allow=ip:127.0.0.1 deny=all"
 
 ["default.atk._atp.alice.local"]
-record = "v=atp1 k=ed25519 p=MCowBQYDK2VwAyEA..."
+record = "v=atp1 k=sm2 p=<SM2_PUBLIC_KEY_BASE64>"
 ```
 
 Query priority: local override → real DNS → fallback.

@@ -16,13 +16,31 @@ def server_group():
 @click.option("--no-tls", is_flag=True, help="Run without TLS (plaintext HTTP). NOT recommended for production.")
 @click.option("--cert", type=click.Path(), help="TLS certificate path")
 @click.option("--key", "tls_key", type=click.Path(), help="TLS private key path")
+@click.option("--key-selector", default=None, help="ATK domain-key selector")
+@click.option(
+    "--key-algorithm",
+    type=click.Choice(["sm2", "ed25519"], case_sensitive=False),
+    default=None,
+    help="ATK signature algorithm (config default: sm2)",
+)
 @click.option("--admin-token", default=None, help="Admin bearer token for /stats, /inspect, /agents endpoints")
 @click.option(
     "--log-level",
     default="INFO",
     type=click.Choice(["DEBUG", "INFO", "WARNING", "ERROR"]),
 )
-def start_cmd(domain, port, host, no_tls, cert, tls_key, admin_token, log_level):
+def start_cmd(
+    domain,
+    port,
+    host,
+    no_tls,
+    cert,
+    tls_key,
+    key_selector,
+    key_algorithm,
+    admin_token,
+    log_level,
+):
     """Start the ATP server."""
     from atp.server.app import ATPServer
     from atp.server.config import RuntimeServerConfig
@@ -48,6 +66,8 @@ def start_cmd(domain, port, host, no_tls, cert, tls_key, admin_token, log_level)
         "host": host,
         "cert": cert if not no_tls else None,
         "key": tls_key if not no_tls else None,
+        "key_selector": key_selector,
+        "key_algorithm": key_algorithm,
         "log_level": log_level,
         "admin_token": admin_token,
     }

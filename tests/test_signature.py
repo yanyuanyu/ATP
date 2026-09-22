@@ -4,6 +4,7 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
 from atp.core.message import ATPMessage
 from atp.core.signature import Signer, Verifier
+from atp.security.sm2 import SM2PrivateKey
 
 
 def _make_key_pair():
@@ -131,3 +132,48 @@ class TestSignAndVerify:
         assert result.passed is False
         assert result.error_code == "550 5.7.28"
         assert "no signature" in result.error_message.lower()
+
+
+class TestSM2SignAndVerify:
+    """The competition-default SM2/SM3 ATK signature path."""
+
+    def test_sign_and_verify_passes(self):
+        private_key = SM2PrivateKey.generate()
+        signer = Signer(private_key, "default", "example.com")
+        msg = ATPMessage.create("alice@example.com", "bob@other.com", {"text": "hi"})
+
+        signed = signer.sign(msg)
+
+        assert signed.signature is not None
+        assert signed.signature.algorithm == "sm2"
+        assert signed.signature.key_id == "default.atk._atp.example.com"
+        assert Verifier.verify(signed, private_key.public_key()).passed is True
+
+    def test_tampered_message_fails(self):
+        private_key = SM2PrivateKey.generate()
+        msg = ATPMessage.create("alice@example.com", "bob@other.com", {"text": "hi"})
+        Signer(private_key, "default", "example.com").sign(msg)
+
+        msg.payload["text"] = "tampered"
+
+        assert Verifier.verify(msg, private_key.public_key()).passed is False
+
+    def test_wrong_sm2_key_fails(self):
+        private_key = SM2PrivateKey.generate()
+        wrong_key = SM2PrivateKey.generate()
+        msg = ATPMessage.create("alice@example.com", "bob@other.com", {"text": "hi"})
+        Signer(private_key, "default", "example.com").sign(msg)
+
+        assert Verifier.verify(msg, wrong_key.public_key()).passed is False
+
+    def test_algorithm_downgrade_is_rejected(self):
+        private_key = SM2PrivateKey.generate()
+        msg = ATPMessage.create("alice@example.com", "bob@other.com", {"text": "hi"})
+        Signer(private_key, "default", "example.com").sign(msg)
+        assert msg.signature is not None
+        msg.signature.algorithm = "ed25519"
+
+        result = Verifier.verify(msg, private_key.public_key())
+
+        assert result.passed is False
+        assert "algorithm mismatch" in result.error_message.lower()

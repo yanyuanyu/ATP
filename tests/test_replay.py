@@ -1,5 +1,6 @@
-import time
+import sqlite3
 import threading
+import time
 import uuid
 
 import pytest
@@ -72,6 +73,49 @@ class TestReplayGuard:
 
         # After clearing, same nonce should be accepted again
         assert guard.check(nonce, timestamp) is True
+
+    def test_sqlite_connection_uses_wal_and_busy_timeout(self, tmp_path):
+        guard = ReplayGuard(db_path=tmp_path / "nonces.db")
+        assert guard._conn is not None
+        assert guard._conn.execute("PRAGMA journal_mode").fetchone()[0] == "wal"
+        assert guard._conn.execute("PRAGMA busy_timeout").fetchone()[0] == 30_000
+
+    def test_persistence_error_releases_write_lock(self, tmp_path):
+        db_path = tmp_path / "nonces.db"
+        guard = ReplayGuard(db_path=db_path)
+        assert guard._conn is not None
+        guard._conn.execute(
+            """CREATE TRIGGER reject_nonce BEFORE INSERT ON nonces
+            BEGIN SELECT RAISE(ABORT, 'injected failure'); END"""
+        )
+        guard._conn.commit()
+
+        assert guard.check("rejected", int(time.time())) is True
+
+        observer = sqlite3.connect(db_path, timeout=0.1)
+        observer.execute("DROP TRIGGER reject_nonce")
+        observer.commit()
+        observer.execute("INSERT INTO nonces VALUES (?, ?)", ("observer", int(time.time())))
+        observer.commit()
+        observer.close()
+
+    def test_prune_db_commits_deletions(self, tmp_path):
+        db_path = tmp_path / "nonces.db"
+        guard = ReplayGuard(max_age_seconds=10, db_path=db_path)
+        assert guard._conn is not None
+        guard._conn.execute(
+            "INSERT INTO nonces VALUES (?, ?)", ("expired", int(time.time()) - 100)
+        )
+        guard._conn.commit()
+
+        guard._prune_db()
+
+        observer = sqlite3.connect(db_path)
+        count = observer.execute(
+            "SELECT COUNT(*) FROM nonces WHERE nonce = 'expired'"
+        ).fetchone()[0]
+        observer.close()
+        assert count == 0
 
     def test_thread_safety(self):
         guard = ReplayGuard()

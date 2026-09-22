@@ -25,7 +25,9 @@ class AgentStore:
 
     def _get_conn(self) -> sqlite3.Connection:
         if self._conn is None:
-            self._conn = sqlite3.connect(str(self._db_path))
+            self._conn = sqlite3.connect(str(self._db_path), timeout=30)
+            self._conn.execute("PRAGMA journal_mode=WAL")
+            self._conn.execute("PRAGMA busy_timeout=30000")
         return self._conn
 
     def init_db(self) -> None:
@@ -60,6 +62,7 @@ class AgentStore:
             )
             conn.commit()
         except sqlite3.IntegrityError:
+            conn.rollback()
             raise StorageError(
                 code=ATPErrorCode.SERVER_ERROR,
                 message=f"Agent {agent_id} already registered"

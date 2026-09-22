@@ -6,7 +6,7 @@ ATP provides four layers of security, each addressing a different threat:
 ┌──────────────────────────────────────────────────────┐
 │  ATK (Agent Transfer Key)                             │
 │  "Is this message authentic and untampered?"          │
-│  → Ed25519 digital signatures (verified at Server B)  │
+│  → SM2/SM3 digital signatures (verified at Server B)  │
 ├──────────────────────────────────────────────────────┤
 │  ATS (Agent Transfer Sender Policy)                   │
 │  "Is this server authorized to send for this domain?" │
@@ -107,7 +107,7 @@ ATK solves this with **digital signatures**.
 ```
 1. Build message → remove signature field
 2. JCS canonicalize (RFC 8785) → deterministic bytes
-3. Ed25519 sign with private key → signature bytes
+3. SM2/SM3 sign with private key → DER signature bytes
 4. Attach SignatureEnvelope to message
 ```
 
@@ -116,11 +116,11 @@ ATK solves this with **digital signatures**.
 ```
 1. Extract key_id from signature: "default.atk._atp.example.com"
 2. Query DNS: default.atk._atp.example.com TXT
-   → "v=atp1 k=ed25519 p=MCowBQ..."
-3. Decode base64 → Ed25519 public key
+   → "v=atp1 k=sm2 p=BASE64..."
+3. Decode base64 → SM2 public key
 4. Remove signature field from message
 5. JCS canonicalize → bytes
-6. Ed25519 verify(public_key, bytes, signature)
+6. SM2/SM3 verify(public_key, bytes, signature)
    → PASS ✅ or FAIL ❌
 ```
 
@@ -132,7 +132,7 @@ Attacker:    payload.body = "Transfer $10000 to Eve"
 
 Verification:
   canonicalize(tampered message) → different bytes
-  Ed25519 verify → FAIL ❌
+  SM2/SM3 verify → FAIL ❌
   "Signature doesn't match content"
 ```
 
@@ -149,14 +149,14 @@ ATK is inspired by **DKIM** (DomainKeys Identified Mail, RFC 6376).
 | DKIM (Email) | ATK (ATP) |
 |-------------|-----------|
 | `selector._domainkey.example.com` | `selector.atk._atp.example.com` |
-| RSA/Ed25519 signature in email header | Ed25519 signature in message envelope |
+| RSA/Ed25519 signature in email header | SM2/SM3 signature in message envelope |
 | Covers selected headers + body | Covers all fields (from, to, timestamp, nonce, type, payload) |
 
 ### Key Management
 
 | Recommendation | Detail |
 |---------------|--------|
-| Algorithm | Ed25519 (fast, secure, 32-byte keys) |
+| Algorithm | SM2 signature with SM3 digest (default); Ed25519 compatibility is explicit |
 | Rotation | Every 90 days |
 | Concurrent keys | Maintain current + previous (for in-flight messages) |
 | Revocation | Set `t=s` flag in ATK record |
@@ -230,7 +230,7 @@ Server B does **not** trust Server A's verification. It queries DNS and verifies
 | Threat | Mitigation |
 |--------|-----------|
 | Identity spoofing | ATS sender authorization |
-| Message tampering | ATK Ed25519 signatures |
+| Message tampering | ATK SM2/SM3 signatures |
 | Eavesdropping | TLS 1.3 encryption |
 | Replay attacks | Nonce + timestamp checking |
 | DNS poisoning | DNSSEC (recommended) |

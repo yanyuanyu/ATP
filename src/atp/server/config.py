@@ -16,6 +16,7 @@ class RuntimeServerConfig:
     peers_file: str | None = None
     dns_override_file: str | None = None
     key_selector: str = "default"
+    key_algorithm: str = "sm2"
     max_message_size: int = 1_048_576  # 1 MB
     replay_max_age: int = 300
     retry_max_attempts: int = 6
@@ -26,7 +27,8 @@ class RuntimeServerConfig:
     def from_cli_and_config(cls, cli_args: dict, atp_config: ATPConfig) -> "RuntimeServerConfig":
         """Merge: CLI args override config file values override defaults.
 
-        cli_args keys: domain, port, host, local, peers, cert, key, log_level
+        cli_args keys include domain, port, host, local, peers, cert, key,
+        key_selector, key_algorithm, and log_level.
         """
         # Start with config-file values
         domain = atp_config.server.domain
@@ -38,6 +40,7 @@ class RuntimeServerConfig:
         peers_file = atp_config.peers_file or None
         dns_override_file = atp_config.dns_override_file or None
         key_selector = atp_config.key_selector
+        key_algorithm = atp_config.key_algorithm
         log_level = "INFO"
 
         # CLI overrides (only if present and non-None)
@@ -57,6 +60,10 @@ class RuntimeServerConfig:
             peers_file = cli_args["peers"]
         if cli_args.get("log_level"):
             log_level = cli_args["log_level"]
+        if cli_args.get("key_selector"):
+            key_selector = cli_args["key_selector"]
+        if cli_args.get("key_algorithm"):
+            key_algorithm = cli_args["key_algorithm"]
 
         admin_token = atp_config.server.admin_token if hasattr(atp_config.server, 'admin_token') else ""
         if cli_args.get("admin_token"):
@@ -72,6 +79,7 @@ class RuntimeServerConfig:
             peers_file=peers_file,
             dns_override_file=dns_override_file,
             key_selector=key_selector,
+            key_algorithm=key_algorithm,
             log_level=log_level,
             admin_token=admin_token,
         )

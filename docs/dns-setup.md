@@ -39,7 +39,7 @@ Add the following records to your DNS provider:
 
   ats._atp.example.com.  IN TXT "v=atp1 allow=ip:203.0.113.1 deny=all"
 
-  default.atk._atp.example.com.  IN TXT "v=atp1 k=ed25519 p=MCowBQ..."
+  default.atk._atp.example.com.  IN TXT "v=atp1 k=sm2 p=BASE64..."
 ```
 
 ### 3. Add Records to Your DNS Provider
@@ -55,7 +55,7 @@ Go to your DNS provider (Cloudflare, AWS Route53, Google Cloud DNS, Aliyun DNS, 
 |------|------|---------|
 | SVCB | `_atp.example.com` | `1 atp.example.com. port=7443 alpn="atp/1"` |
 | TXT | `ats._atp.example.com` | `v=atp1 allow=ip:203.0.113.1 deny=all` |
-| TXT | `default.atk._atp.example.com` | `v=atp1 k=ed25519 p=MCowBQ...` |
+| TXT | `default.atk._atp.example.com` | `v=atp1 k=sm2 p=BASE64...` |
 
 #### AWS Route53 Example
 
@@ -144,17 +144,17 @@ ats._atp.example.com. IN TXT "v=atp1 allow=all"
 ### ATK Record (Public Key)
 
 ```dns
-default.atk._atp.example.com. IN TXT "v=atp1 k=ed25519 p=MCowBQYDK2VwAyEA..."
+default.atk._atp.example.com. IN TXT "v=atp1 k=sm2 p=BASE64..."
 ```
 
-Publishes the Ed25519 public key used to verify message signatures.
+Publishes the SM2 public key used to verify SM2/SM3 message signatures.
 
 | Field | Description |
 |-------|-------------|
 | `default` | Key selector (supports multiple concurrent keys) |
 | `v=atp1` | ATK version 1 (required) |
-| `k=ed25519` | Key algorithm |
-| `p=<base64>` | Base64-encoded raw public key (32 bytes) |
+| `k=sm2` | Key algorithm |
+| `p=<base64>` | Base64-encoded uncompressed SM2 public point (65 bytes) |
 | `t=s` | (Optional) Key is revoked — do not use for new signatures |
 | `x=<timestamp>` | (Optional) Key expiry Unix timestamp |
 

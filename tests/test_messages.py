@@ -51,7 +51,8 @@ class TestMessageStore:
 
     def test_duplicate_nonce_raises(self, tmp_path: Path) -> None:
         """enqueue() should raise StorageError on duplicate nonce."""
-        store = MessageStore(db_path=tmp_path / "test.db")
+        db_path = tmp_path / "test.db"
+        store = MessageStore(db_path=db_path)
         msg1 = _make_message(nonce="dup-nonce")
         msg2 = _make_message(nonce="dup-nonce")
 
@@ -59,6 +60,16 @@ class TestMessageStore:
 
         with pytest.raises(StorageError):
             store.enqueue(msg2)
+
+        # A rejected enqueue must not leave a write lock behind.
+        second_store = MessageStore(db_path=db_path)
+        row_id = second_store.enqueue(_make_message(nonce="fresh-nonce"))
+        assert row_id > 0
+
+    def test_sqlite_connection_uses_wal_and_busy_timeout(self, tmp_path: Path) -> None:
+        store = MessageStore(db_path=tmp_path / "test.db")
+        assert store._conn.execute("PRAGMA journal_mode").fetchone()[0] == "wal"
+        assert store._conn.execute("PRAGMA busy_timeout").fetchone()[0] == 30_000
 
     def test_update_status(self, tmp_path: Path) -> None:
         """update_status() should change the message status."""

@@ -9,7 +9,7 @@ This guide walks you through running two ATP servers locally and sending message
 
 ## Step 1: Generate Key Pairs
 
-Each server needs its own Ed25519 key pair for message signing.
+Each server needs its own SM2 key pair for SM2/SM3 message signing.
 
 ```bash
 # Create directories for two servers
@@ -52,10 +52,10 @@ record = "v=atp1 allow=ip:127.0.0.1 deny=all"
 # ATK public keys — replace with your actual keys
 # Get them with: atp keys show --public
 ["default.atk._atp.alice.local"]
-record = "v=atp1 k=ed25519 p=<ALICE_PUBLIC_KEY_BASE64>"
+record = "v=atp1 k=sm2 p=<ALICE_PUBLIC_KEY_BASE64>"
 
 ["default.atk._atp.bob.local"]
-record = "v=atp1 k=ed25519 p=<BOB_PUBLIC_KEY_BASE64>"
+record = "v=atp1 k=sm2 p=<BOB_PUBLIC_KEY_BASE64>"
 ```
 
 Get the public keys:
@@ -154,11 +154,11 @@ Here's the full flow that just occurred:
 3. Server A verified Credential:
    └── Is agent@alice.local a registered agent with valid password? → PASS ✅
 4. Server A looked up bob.local in peers.toml → 127.0.0.1:7444
-5. Server A signed the message with its domain-level Ed25519 key
+5. Server A signed the message with its domain-level SM2 key using SM3
 6. Server A forwarded the signed message to Server B
 7. Server B verified independently:
    ├── ATS: Is 127.0.0.1 authorized for alice.local? → PASS ✅
-   ├── ATK: Is the Ed25519 signature valid? → PASS ✅
+   ├── ATK: Is the SM2/SM3 signature valid? → PASS ✅
    └── Replay: Is this nonce fresh? → PASS ✅
 8. Server B delivered the message to agent@bob.local's inbox
 8. CLI recv fetched the message from Server B

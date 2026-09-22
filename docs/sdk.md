@@ -144,11 +144,11 @@ by the ATP Server (domain-level key), not by the client. These primitives
 are exposed for server-side use and testing.
 
 ```python
-from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from atp.core.signature import Signer, Verifier
+from atp.security.sm2 import SM2PrivateKey
 
 # Server-side: sign a message with domain key before transfer
-private_key = Ed25519PrivateKey.generate()
+private_key = SM2PrivateKey.generate()
 signer = Signer(private_key, selector="default", domain="example.com")
 msg = ATPMessage.create("bot@example.com", "target@remote.org", {"body": "hi"})
 signer.sign(msg)  # Signs in-place, attaches signature
@@ -177,7 +177,7 @@ print(str(agent))        # "alice@example.com"
 
 ### `KeyStorage`
 
-Manage Ed25519 key pairs.
+Manage SM2 keys by default, with optional Ed25519 compatibility.
 
 ```python
 from pathlib import Path
@@ -186,19 +186,19 @@ from atp.storage.keys import KeyStorage
 keys = KeyStorage(Path("~/.atp/keys"))
 
 # Generate
-info = keys.generate(selector="default")
+info = keys.generate(selector="default", algorithm="sm2")
 
 # Load
-private_key = keys.load_private_key("default")
-public_key = keys.load_public_key("default")
+private_key = keys.load_private_key("default", "sm2")
+public_key = keys.load_public_key("default", "sm2")
 
 # Get base64 public key (for DNS ATK record)
-b64 = keys.get_public_key_b64("default")
-print(b64)  # "MCowBQYDK2VwAyEA..."
+b64 = keys.get_public_key_b64("default", "sm2")
+print(b64)
 
 # List all keys
 for k in keys.list_keys():
-    print(f"{k.selector}: created {k.created_at}")
+    print(f"{k.selector} ({k.algorithm}): created {k.created_at}")
 ```
 
 ### `MessageStore`

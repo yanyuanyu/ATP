@@ -15,8 +15,14 @@ def dns_group():
 @click.option("--domain", required=True, help="Your domain")
 @click.option("--ip", required=True, help="Server public IP")
 @click.option("--selector", default="default", help="Key selector")
+@click.option(
+    "--algorithm",
+    type=click.Choice(["sm2", "ed25519"], case_sensitive=False),
+    default="sm2",
+    show_default=True,
+)
 @click.option("--port", default=7443, type=int)
-def generate_cmd(domain, ip, selector, port):
+def generate_cmd(domain, ip, selector, algorithm, port):
     """Generate DNS records to configure at your DNS provider."""
     from atp.storage.config import ConfigStorage
     from atp.storage.keys import KeyStorage
@@ -27,11 +33,13 @@ def generate_cmd(domain, ip, selector, port):
 
     # Ensure key exists
     try:
-        pub_b64 = keys.get_public_key_b64(selector)
+        pub_b64 = keys.get_public_key_b64(selector, algorithm)
     except Exception:
-        click.echo(f"No key found for selector '{selector}'. Generating...")
-        keys.generate(selector)
-        pub_b64 = keys.get_public_key_b64(selector)
+        click.echo(
+            f"No {algorithm} key found for selector '{selector}'. Generating..."
+        )
+        keys.generate(selector, algorithm)
+        pub_b64 = keys.get_public_key_b64(selector, algorithm)
 
     click.echo("\nAdd the following records to your DNS provider:\n")
     click.echo(f"  _atp.{domain}.  IN SVCB 1 atp.{domain}. (")
@@ -40,7 +48,10 @@ def generate_cmd(domain, ip, selector, port):
     click.echo()
     click.echo(f"  ats._atp.{domain}.  IN TXT \"v=atp1 allow=ip:{ip} deny=all\"")
     click.echo()
-    click.echo(f"  {selector}.atk._atp.{domain}.  IN TXT \"v=atp1 k=ed25519 p={pub_b64}\"")
+    click.echo(
+        f"  {selector}.atk._atp.{domain}.  IN TXT "
+        f"\"v=atp1 k={algorithm} p={pub_b64}\""
+    )
     click.echo()
 
 
@@ -71,7 +82,18 @@ def check_cmd(domain, selector):
         # ATK
         atk = await resolver.query_txt(f"{selector}.atk._atp.{domain}")
         if atk:
-            click.echo(f"  ATK   {selector}.atk._atp.{domain}  Found")
+            from atp.security.atk import ATKRecord
+
+            try:
+                record = ATKRecord.parse(atk)
+                click.echo(
+                    f"  ATK   {selector}.atk._atp.{domain}  "
+                    f"Found (algorithm={record.algorithm})"
+                )
+            except Exception:
+                click.echo(
+                    f"  ATK   {selector}.atk._atp.{domain}  Found but invalid"
+                )
         else:
             click.echo(f"  ATK   {selector}.atk._atp.{domain}  Not found")
 

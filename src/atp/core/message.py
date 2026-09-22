@@ -14,7 +14,7 @@ class SignatureEnvelope:
     """Envelope containing an ATK signature over a message."""
 
     key_id: str  # e.g. "default.atk._atp.example.com"
-    algorithm: str  # "ed25519"
+    algorithm: str  # "sm2" (default) or "ed25519"
     signature: str  # base64-encoded
     headers: list[str]  # e.g. ["from", "to", "timestamp", "nonce", "type"]
     timestamp: int

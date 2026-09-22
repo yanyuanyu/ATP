@@ -79,12 +79,22 @@ class ATPServer:
 
         # Signer
         key_storage = KeyStorage(config_dir / "keys")
-        try:
-            private_key = key_storage.load_private_key(self.config.key_selector)
-        except Exception:
-            logger.info(f"No key found for selector '{self.config.key_selector}', generating...")
-            key_storage.generate(self.config.key_selector)
-            private_key = key_storage.load_private_key(self.config.key_selector)
+        if not key_storage.has_any_key_file(
+            self.config.key_selector, self.config.key_algorithm
+        ):
+            logger.info(
+                "No %s key found for selector '%s', generating...",
+                self.config.key_algorithm,
+                self.config.key_selector,
+            )
+            key_storage.generate(
+                self.config.key_selector, self.config.key_algorithm
+            )
+        # A malformed key must fail startup instead of being silently replaced:
+        # replacing it would leave DNS publishing the old public key.
+        private_key, _public_key = key_storage.load_key_pair(
+            self.config.key_selector, self.config.key_algorithm
+        )
         self.signer = Signer(private_key, self.config.key_selector, self.config.domain)
 
         # Metrics

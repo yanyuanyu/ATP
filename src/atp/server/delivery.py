@@ -88,8 +88,8 @@ class DeliveryManager:
     async def transfer(self, message: ATPMessage) -> bool:
         """Sign with domain key and transfer message to remote server.
 
-        The server signs the message with its domain-level Ed25519 private
-        key before sending. This ensures ATK is a domain-level mechanism:
+        The server signs the message with its configured domain-level private
+        key (SM2 by default) before sending. This ensures ATK is a domain-level mechanism:
         Server B verifies the signature against the sender domain's DNS
         public key, not against any individual agent's key.
         """

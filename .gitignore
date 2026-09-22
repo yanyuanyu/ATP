@@ -1,13 +1,63 @@
+# Python bytecode and package artifacts
 __pycache__/
-*.pyc
-*.pyo
-*.egg-info/
-dist/
-build/
-.eggs/
+*.py[cod]
+*$py.class
+*.so
 *.egg
-.pytest_cache/
-.mypy_cache/
+*.egg-info/
+.eggs/
+build/
+dist/
+sdist/
+wheels/
+
+# Virtual environments
 .venv/
+.venv-*/
 venv/
+env/
+ENV/
+
+# Tests, type checking and coverage caches
+.pytest_cache/
+.pytest-tmp*/
+.mypy_cache/
+.ruff_cache/
+.hypothesis/
+.tox/
+.nox/
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+
+# Local configuration and credentials
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+*.p12
+*.pfx
+certs/
+secrets/
+
+# Runtime-generated data
 *.db
+*.sqlite
+*.sqlite3
+*.log
+logs/
+traces/
+tmp/
+temp/
+
+# Editors and operating-system files
+.DS_Store
+Thumbs.db
+Desktop.ini
+.idea/
+.vscode/
+*.swp
+*.swo
+*~

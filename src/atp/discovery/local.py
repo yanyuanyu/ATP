@@ -27,7 +27,7 @@ class LocalResolver(BaseDNSResolver):
         record = "v=atp1 allow=ip:127.0.0.1 deny=all"
 
         ["default.atk._atp.alice.local"]
-        record = "v=atp1 k=ed25519 p=MCowBQ..."
+        record = "v=atp1 k=sm2 p=<SM2_PUBLIC_KEY_BASE64>"
     """
 
     def __init__(

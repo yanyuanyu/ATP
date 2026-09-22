@@ -34,11 +34,12 @@ src/atp/
 │   ├── identity.py         # AgentID parsing and validation
 │   ├── canonicalize.py     # JCS (RFC 8785) JSON canonicalization
 │   ├── message.py          # ATPMessage and SignatureEnvelope dataclasses
-│   └── signature.py        # Ed25519 Signer, Verifier, VerifyResult
+│   └── signature.py        # SM2/SM3 and Ed25519 Signer/Verifier
 │
 ├── security/               # Security verification pipeline
 │   ├── ats.py              # ATS policy parsing and evaluation
 │   ├── atk.py              # ATK record parsing and signature verification
+│   ├── sm2.py              # SM2 key and SM2/SM3 signature primitives
 │   ├── tls.py              # TLS context creation, self-signed cert generation
 │   └── replay.py           # Nonce cache with timestamp window
 │
@@ -48,7 +49,7 @@ src/atp/
 │
 ├── storage/                # Persistence
 │   ├── config.py           # ~/.atp/config.toml read/write
-│   ├── keys.py             # Ed25519 key pair management
+│   ├── keys.py             # SM2-default domain key management
 │   └── messages.py         # SQLite message store
 │
 ├── server/                 # ATP Server (integration layer)
@@ -84,7 +85,7 @@ cli/send.py
   ├── Signer.sign(message)          core/signature.py
   │     ├── signable_dict()         core/message.py
   │     ├── canonicalize()          core/canonicalize.py
-  │     └── Ed25519 sign            cryptography
+  │     └── SM2/SM3 sign            gmssl
   │
   └── HTTPTransport.post_message()  client/transport.py
         └── POST /.well-known/atp/v1/message → Server A

@@ -23,6 +23,7 @@ class ATPConfig:
     peers_file: str = ""
     dns_override_file: str = ""
     key_selector: str = "default"
+    key_algorithm: str = "sm2"
 
 
 class ConfigStorage:
@@ -61,6 +62,7 @@ class ConfigStorage:
             peers_file=data.get("peers_file", ""),
             dns_override_file=data.get("dns_override_file", ""),
             key_selector=data.get("key_selector", "default"),
+            key_algorithm=data.get("key_algorithm", "sm2"),
         )
 
     def save(self, config: ATPConfig) -> None:
@@ -74,6 +76,7 @@ class ConfigStorage:
         lines.append(f'peers_file = "{config.peers_file}"')
         lines.append(f'dns_override_file = "{config.dns_override_file}"')
         lines.append(f'key_selector = "{config.key_selector}"')
+        lines.append(f'key_algorithm = "{config.key_algorithm}"')
         lines.append("")
         lines.append("[server]")
         lines.append(f'domain = "{config.server.domain}"')

@@ -42,7 +42,9 @@ class ReplayGuard:
 
     def _init_db(self) -> None:
         """Create the nonces table if using persistent storage."""
-        self._conn = sqlite3.connect(str(self._db_path))
+        self._conn = sqlite3.connect(str(self._db_path), timeout=30)
+        self._conn.execute("PRAGMA journal_mode=WAL")
+        self._conn.execute("PRAGMA busy_timeout=30000")
         self._conn.execute(
             """CREATE TABLE IF NOT EXISTS nonces (
                 nonce TEXT PRIMARY KEY,
@@ -112,6 +114,7 @@ class ReplayGuard:
                     self._insert_count = 0
                 self._conn.commit()
             except sqlite3.Error:
+                self._conn.rollback()  # Release any held write lock
                 pass  # Cache is authoritative; DB failure is non-fatal
 
         # 5. Fresh message
@@ -124,7 +127,9 @@ class ReplayGuard:
         cutoff = int(time.time()) - self._max_age
         try:
             self._conn.execute("DELETE FROM nonces WHERE timestamp < ?", (cutoff,))
+            self._conn.commit()
         except sqlite3.Error:
+            self._conn.rollback()  # Release any held write lock
             pass
 
     def clear(self) -> None:

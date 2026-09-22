@@ -47,6 +47,17 @@ class TestAgentStore:
         with pytest.raises(StorageError):
             store.register("alice@example.com", "different")
 
+        # A rejected registration must not leave a write lock behind.
+        second_store = AgentStore(store._db_path)
+        second_store.init_db()
+        record = second_store.register("bob@example.com", "secret")
+        assert record.agent_id == "bob@example.com"
+
+    def test_sqlite_connection_uses_wal_and_busy_timeout(self, store):
+        conn = store._get_conn()
+        assert conn.execute("PRAGMA journal_mode").fetchone()[0] == "wal"
+        assert conn.execute("PRAGMA busy_timeout").fetchone()[0] == 30_000
+
     def test_change_password(self, store):
         store.register("alice@example.com", "oldpass")
         assert store.verify("alice@example.com", "oldpass") is True

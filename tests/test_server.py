@@ -123,6 +123,7 @@ class TestRuntimeServerConfig:
         assert cfg.host == "0.0.0.0"
         assert cfg.local_mode is False
         assert cfg.max_message_size == 1_048_576
+        assert cfg.key_algorithm == "sm2"
 
     def test_from_cli_and_config_defaults(self):
         atp_config = ATPConfig(
@@ -135,17 +136,27 @@ class TestRuntimeServerConfig:
         assert cfg.port == 8443
         assert cfg.local_mode is True
         assert cfg.peers_file == "peers.toml"
+        assert cfg.key_algorithm == "sm2"
 
     def test_cli_overrides_config(self):
         atp_config = ATPConfig(
             server=ServerConfig(domain="file.local", port=8443),
         )
-        cli_args = {"domain": "cli.local", "port": 9999, "local": False, "log_level": "DEBUG"}
+        cli_args = {
+            "domain": "cli.local",
+            "port": 9999,
+            "local": False,
+            "log_level": "DEBUG",
+            "key_selector": "competition",
+            "key_algorithm": "ed25519",
+        }
         cfg = RuntimeServerConfig.from_cli_and_config(cli_args, atp_config)
         assert cfg.domain == "cli.local"
         assert cfg.port == 9999
         assert cfg.local_mode is False
         assert cfg.log_level == "DEBUG"
+        assert cfg.key_selector == "competition"
+        assert cfg.key_algorithm == "ed25519"
 
     def test_cli_none_values_do_not_override(self):
         atp_config = ATPConfig(

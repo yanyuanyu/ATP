@@ -112,3 +112,4 @@ def test_dns_generate(runner, tmp_path, monkeypatch):
     assert "_atp.example.com" in result.output
     assert "ats._atp.example.com" in result.output
     assert "atk._atp.example.com" in result.output
+    assert "k=sm2" in result.output

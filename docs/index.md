@@ -13,7 +13,7 @@ Agent A ──▶ ATP Server A ═══════Internet══════�
 
 - **Agent Identity** — Agents are identified by `local@domain` (like email addresses)
 - **DNS Discovery** — Find any agent's server via DNS SVCB records, no central registry
-- **Mandatory Signing** — Every message is signed with Ed25519, verified at every hop
+- **Mandatory Signing** — Every message is signed with SM2/SM3 by default, verified at every hop
 - **Sender Authorization** — ATS policies (DNS TXT records) control who can send on behalf of a domain
 - **Store-and-Forward** — Messages are persisted and retried with exponential backoff
 - **CLI + SDK** — Use from the command line or import as a Python library

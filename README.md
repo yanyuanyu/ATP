@@ -9,7 +9,7 @@
 [![IETF Draft](https://img.shields.io/badge/IETF-draft--li--atp-orange.svg)](https://datatracker.ietf.org/doc/draft-li-atp/)
 
 A communication protocol for agent-to-agent transfer.<br>
-DNS-based discovery, mandatory Ed25519 signing, server-mediated delivery.
+DNS-based discovery, SM2/SM3 signing by default, server-mediated delivery.
 
 ```
   Agent A           ATP Server A          ATP Server B          Agent B
@@ -32,7 +32,7 @@ DNS-based discovery, mandatory Ed25519 signing, server-mediated delivery.
     |                    |                     |                    |
 ```
 
-[Quick Start](#quick-start) · [Python SDK](#python-sdk) · [CLI Reference](#cli-reference) · [Documentation](#documentation)
+[Quick Start](#quick-start) · [Python SDK](#python-sdk) · [CLI Reference](#cli-reference) · [Documentation](#documentation) · [Collaboration](#collaboration)
 
 </div>
 
@@ -46,7 +46,7 @@ Agents need a standard way to communicate across the Internet: securely, without
 |---------|-----|
 | **Identity** | `local@domain` format, powered by DNS |
 | **Discovery** | DNS SVCB records, no central registry needed |
-| **Signing** | Ed25519 on every message, verified on cross-domain transfer |
+| **Signing** | SM2/SM3 on every message by default, verified on cross-domain transfer |
 | **Authorization** | ATS policies in DNS, control who can send for your domain |
 | **Delivery** | Store-and-forward with retry, messages don't get lost |
 
@@ -156,11 +156,12 @@ asyncio.run(main())
 
 ### Key Management (Server)
 
-Ed25519 signing keys are auto-generated on first server startup. These commands are for manual control.
+SM2 signing keys are auto-generated on first server startup. Ed25519 remains
+available only as an explicit compatibility option.
 
 | Command | Description |
 |---------|-------------|
-| `atp keys generate` | Generate Ed25519 key pair |
+| `atp keys generate` | Generate SM2 key pair (default) |
 | `atp keys show` | Show key info |
 | `atp keys list` | List all keys |
 | `atp keys rotate` | Rotate to a new key |
@@ -222,9 +223,11 @@ ATP provides four layers of security, inspired by email's battle-tested approach
 | Transport | TLS 1.3 | STARTTLS | Encrypted connections |
 | Authentication | Credential | SMTP AUTH | Agent identity (username + password) |
 | Authorization | ATS | SPF | Who can send for a domain |
-| Integrity | ATK (Ed25519) | DKIM | Message signing & verification |
+| Integrity | ATK (SM2/SM3) | DKIM | Message signing & verification |
 
-Agents authenticate to their server with credentials (password). The server signs messages with its domain-level Ed25519 key before forwarding. Remote servers verify independently via ATS+ATK.
+Agents authenticate to their server with credentials (password). The server
+signs messages with its domain-level SM2 key before forwarding. Remote servers
+retrieve the SM2 public key from DNS and verify independently via ATS+ATK.
 
 ## Documentation
 
@@ -247,13 +250,17 @@ ATP is defined as an IETF Internet-Draft (Standards Track):
 >
 > [IETF Datatracker](https://datatracker.ietf.org/doc/draft-li-atp/) · [Full Text](../Agent%20Transfer%20Protocol%20(ATP).md)
 
+## Collaboration
+
+- **[Iman Schrock (@FutureEnterprises)](https://github.com/FutureEnterprises), EMILIA Protocol** — collaborated on the [EP receipt over ATP composition demo](https://github.com/emiliaprotocol/emilia-protocol/tree/main/examples/ep-over-atp) for the IETF 126 Hackathon. The demo carries an EMILIA human-authorization receipt as an opaque ATP payload and verifies the two layers independently: ATP authenticates the sending agent and domain, while the EMILIA receipt proves authorization of the exact action.
+
 ## Contributing
 
 ```bash
 git clone https://github.com/NKU-AOSP-Lab/AgentTransferProtocol.git
 cd atp
 pip install -e ".[dev]"
-python -m pytest tests/ -v    # 227 tests
+python -m pytest tests/ -v    # run the full test suite
 ```
 
 See [Architecture](docs/architecture.md) for module design and development guide.

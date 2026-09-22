@@ -1,7 +1,9 @@
 """ATK (Agent Transfer Keys) — DKIM-like message authentication for ATP.
 
-Domain owners publish Ed25519 public keys as DNS TXT records.  Sending agents
-sign messages; receiving agents look up the key and verify the signature.
+Domain owners publish SM2 (default) or Ed25519 public keys in DNS TXT records.
+Sending servers sign messages; receiving servers look up the key and verify
+the signature.  The message envelope and DNS record must declare the same
+algorithm; verification never falls back to another algorithm.
 """
 
 from __future__ import annotations
@@ -13,12 +15,11 @@ from dataclasses import dataclass, field
 from typing import Optional
 
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
-from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
-
 from atp.core.errors import ATKError, ATPErrorCode
 from atp.core.message import ATPMessage
 from atp.core.signature import Verifier, VerifyResult
 from atp.discovery.dns import BaseDNSResolver
+from atp.security.sm2 import SM2PublicKey
 
 logger = logging.getLogger(__name__)
 
@@ -28,14 +29,14 @@ class ATKRecord:
     """Parsed ATK DNS TXT record."""
 
     version: str  # "atp1"
-    algorithm: str  # "ed25519"
+    algorithm: str  # "sm2" (default) or "ed25519"
     public_key_b64: str  # base64-encoded raw public key
     flags: list[str] = field(default_factory=list)  # e.g. ["r"] for revoked
     expiry: Optional[int] = None  # Unix timestamp
 
     @classmethod
     def parse(cls, txt_record: str) -> ATKRecord:
-        """Parse a TXT record like ``v=atp1 k=ed25519 p=MCow... [t=s] [x=1710000000]``.
+        """Parse a TXT record like ``v=atp1 k=sm2 p=BASE64... [t=s] [x=...]``.
 
         Raises :class:`ATKError` if any of ``v``, ``k``, or ``p`` is missing.
         """
@@ -81,14 +82,15 @@ class ATKRecord:
             return False
         return True
 
-    def get_public_key(self) -> Ed25519PublicKey:
-        """Decode the base64 public key and return an :class:`Ed25519PublicKey`.
-
-        Raises :class:`ATKError` on decode failure.
-        """
+    def get_public_key(self) -> SM2PublicKey | Ed25519PublicKey:
+        """Decode the algorithm-specific public key from its DNS value."""
         try:
-            raw_bytes = base64.b64decode(self.public_key_b64)
-            return Ed25519PublicKey.from_public_bytes(raw_bytes)
+            raw_bytes = base64.b64decode(self.public_key_b64, validate=True)
+            if self.algorithm == "sm2":
+                return SM2PublicKey.from_raw_bytes(raw_bytes)
+            if self.algorithm == "ed25519":
+                return Ed25519PublicKey.from_public_bytes(raw_bytes)
+            raise ValueError(f"Unsupported ATK algorithm: {self.algorithm!r}")
         except Exception as exc:
             raise ATKError(
                 ATPErrorCode.ATK_SIGNATURE_FAILED,
@@ -184,6 +186,17 @@ class ATKVerifier:
                 passed=False,
                 error_code="550 5.7.29",
                 error_message="ATK key revoked or expired",
+            )
+
+        if message.signature.algorithm != record.algorithm:
+            return VerifyResult(
+                passed=False,
+                error_code="550 5.7.28",
+                error_message=(
+                    "ATK algorithm mismatch: message declares "
+                    f"'{message.signature.algorithm}' but DNS declares "
+                    f"'{record.algorithm}'"
+                ),
             )
 
         try:

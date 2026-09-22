@@ -22,6 +22,7 @@ class TestConfigStorage:
             peers_file="/etc/atp/peers.json",
             dns_override_file="/etc/atp/dns.json",
             key_selector="rotate-2024",
+            key_algorithm="ed25519",
         )
 
         storage.save(config)
@@ -37,6 +38,7 @@ class TestConfigStorage:
         assert loaded.peers_file == "/etc/atp/peers.json"
         assert loaded.dns_override_file == "/etc/atp/dns.json"
         assert loaded.key_selector == "rotate-2024"
+        assert loaded.key_algorithm == "ed25519"
 
     def test_load_returns_defaults_when_file_missing(self, tmp_path: Path) -> None:
         """load() should return default ATPConfig when config.toml does not exist."""
@@ -49,6 +51,7 @@ class TestConfigStorage:
         assert config.server.port == 7443
         assert config.local_mode is False
         assert config.key_selector == "default"
+        assert config.key_algorithm == "sm2"
 
     def test_ensure_dirs_creates_subdirectories(self, tmp_path: Path) -> None:
         """ensure_dirs() should create keys/, certs/, and data/ directories."""

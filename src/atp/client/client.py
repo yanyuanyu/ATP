@@ -50,7 +50,7 @@ class ATPClient:
         """Build and send a message (unsigned).
 
         The message is submitted unsigned to the local ATP Server.
-        The server signs it with the domain-level Ed25519 key before
+        The server signs it with the configured domain-level key before
         forwarding to the remote server. This ensures ATK signing is
         a domain-level operation, not per-agent.
         """
