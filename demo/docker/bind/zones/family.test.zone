@@ -1,0 +1,14 @@
+$ORIGIN family.test.
+$TTL 300
+
+@    IN SOA  ns.family.test. admin.family.test. 1 3600 600 86400 300
+@    IN NS   ns.family.test.
+ns   IN A    172.28.0.10
+
+_atp IN SVCB 1 server-family.family.test. alpn="atp/1" port=7443
+
+server-family IN A 172.28.1.1
+
+ats._atp IN TXT "v=atp1 allow=ip:172.28.0.0/16 deny=all"
+
+default.atk._atp IN TXT "v=atp1 k=sm2 p=BOV+5PZ/weviLe9bmzoJCOkS24DzgktzyGQouWfQxaBy9GkXUaNP/wpa0xycbk2wvtJtO0jDEWRkMYh7cZ29ObI="

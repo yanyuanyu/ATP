@@ -1,0 +1,443 @@
+# IETF 126 Hackathon — ATP local Docker environment.
+# Image `atp-hackthon:latest` is pre-built externally by `scripts/build.sh`.
+
+services:
+
+  # ── DNS (BIND9 9.18 — native SVCB support) ──────────────────────────────
+  dns:
+    image: internetsystemsconsortium/bind9:9.18
+    container_name: hack-dns
+    networks:
+      atpnet:
+        ipv4_address: 172.28.0.10
+    volumes:
+      - ./bind/named.conf:/etc/bind/named.conf:ro
+      - ./bind/zones:/etc/bind/zones:ro
+
+  # ── family.test ──────────────────────────────────────────────────────────
+
+  server-family:
+    image: atp-hackthon:latest
+    container_name: hack-server-family
+    hostname: server-family.family.test
+    networks:
+      atpnet:
+        ipv4_address: 172.28.1.1
+    dns: 172.28.0.10
+    environment:
+      - SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt
+    volumes:
+      - ./certs/ca.crt:/usr/local/share/ca-certificates/atp-ca.crt:ro
+      - ./certs/family.test.crt:/atp/certs/server.crt:ro
+      - ./certs/family.test.key:/atp/certs/server.key:ro
+      - ./agents:/agents:ro
+      - server-family-data:/root/.atp
+    command:
+      - sh
+      - -c
+      - |
+        update-ca-certificates 2>/dev/null
+        atp server start --key-algorithm sm2 --domain family.test --port 7443 --host 0.0.0.0 --cert /atp/certs/server.crt --key /atp/certs/server.key
+    depends_on:
+      - dns
+
+  # ── hotel.test ───────────────────────────────────────────────────────────
+
+  server-hotel:
+    image: atp-hackthon:latest
+    container_name: hack-server-hotel
+    hostname: server-hotel.hotel.test
+    networks:
+      atpnet:
+        ipv4_address: 172.28.2.1
+    dns: 172.28.0.10
+    environment:
+      - SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt
+    volumes:
+      - ./certs/ca.crt:/usr/local/share/ca-certificates/atp-ca.crt:ro
+      - ./certs/hotel.test.crt:/atp/certs/server.crt:ro
+      - ./certs/hotel.test.key:/atp/certs/server.key:ro
+      - ./agents:/agents:ro
+      - server-hotel-data:/root/.atp
+    command:
+      - sh
+      - -c
+      - |
+        update-ca-certificates 2>/dev/null
+        atp server start --key-algorithm sm2 --domain hotel.test --port 7443 --host 0.0.0.0 --cert /atp/certs/server.crt --key /atp/certs/server.key
+    depends_on:
+      - dns
+
+  # ── payment.test ─────────────────────────────────────────────────────────
+
+  server-payment:
+    image: atp-hackthon:latest
+    container_name: hack-server-payment
+    hostname: server-payment.payment.test
+    networks:
+      atpnet:
+        ipv4_address: 172.28.3.1
+    dns: 172.28.0.10
+    environment:
+      - SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt
+    volumes:
+      - ./certs/ca.crt:/usr/local/share/ca-certificates/atp-ca.crt:ro
+      - ./certs/payment.test.crt:/atp/certs/server.crt:ro
+      - ./certs/payment.test.key:/atp/certs/server.key:ro
+      - ./agents:/agents:ro
+      - server-payment-data:/root/.atp
+    command:
+      - sh
+      - -c
+      - |
+        update-ca-certificates 2>/dev/null
+        atp server start --key-algorithm sm2 --domain payment.test --port 7443 --host 0.0.0.0 --cert /atp/certs/server.crt --key /atp/certs/server.key
+    depends_on:
+      - dns
+
+  # ── Long-running agent: search@hotel.test ───────────────────────────────
+
+  agent-search:
+    image: atp-hackthon-demo:latest
+    container_name: hack-agent-search
+    hostname: agent-search.hotel.test
+    networks:
+      atpnet:
+        ipv4_address: 172.28.2.101
+    dns: 172.28.0.10
+    volumes:
+      - ./certs/ca.crt:/usr/local/share/ca-certificates/atp-ca.crt:ro
+      - ./agents:/agents:ro
+    environment:
+      - PI_AGENT_ROLE=search
+      - ATP_AGENT_ID=search@hotel.test
+      - ATP_SERVER=server-hotel.hotel.test:7443
+      - ATP_PASSWORD=searchpass
+      - ATP_PI_ADAPTER=/agents/pi_adapter.py
+      - LLM_API_BASE=${LLM_API_BASE:-https://dashscope.aliyuncs.com/compatible-mode/v1}
+      - LLM_API_MODEL=${LLM_API_MODEL:-qwen3.7-plus}
+      - LLM_API_KEY=${LLM_API_KEY:-}
+    command:
+      - sh
+      - -c
+      - |
+        update-ca-certificates 2>/dev/null
+        until curl -sk https://$$ATP_SERVER/.well-known/atp/v1/health > /dev/null 2>&1; do sleep 2; done
+        node /opt/atp-pi/runtime.mjs search
+    depends_on:
+      - server-hotel
+
+  # ── Long-running agent: rates@hotel.test (scenario broker) ─────────────
+  # Handles subject="subscribe" requests by pushing 3 deterministic
+  # price-change events back to the subscriber. Used by scripts/scenario.sh.
+
+  agent-rates:
+    image: atp-hackthon-demo:latest
+    container_name: hack-agent-rates
+    hostname: agent-rates.hotel.test
+    networks:
+      atpnet:
+        ipv4_address: 172.28.2.103
+    dns: 172.28.0.10
+    volumes:
+      - ./certs/ca.crt:/usr/local/share/ca-certificates/atp-ca.crt:ro
+      - ./agents:/agents:ro
+    environment:
+      - PI_AGENT_ROLE=rates
+      - ATP_AGENT_ID=rates@hotel.test
+      - ATP_SERVER=server-hotel.hotel.test:7443
+      - ATP_PASSWORD=ratespass
+      - ATP_PI_ADAPTER=/agents/pi_adapter.py
+      - LLM_API_BASE=${LLM_API_BASE:-https://dashscope.aliyuncs.com/compatible-mode/v1}
+      - LLM_API_MODEL=${LLM_API_MODEL:-qwen3.7-plus}
+      - LLM_API_KEY=${LLM_API_KEY:-}
+    command:
+      - sh
+      - -c
+      - |
+        update-ca-certificates 2>/dev/null
+        until curl -sk https://$$ATP_SERVER/.well-known/atp/v1/health > /dev/null 2>&1; do sleep 2; done
+        node /opt/atp-pi/runtime.mjs rates
+    depends_on:
+      - server-hotel
+
+  # ── Long-running agent: bill@payment.test ───────────────────────────────
+  # Used as the recipient for the offline-queue demo. Kept long-running so
+  # the offline-sender profile can be run any time payment is up.
+  agent-bill:
+    image: atp-hackthon-demo:latest
+    container_name: hack-agent-bill
+    hostname: agent-bill.payment.test
+    networks:
+      atpnet:
+        ipv4_address: 172.28.3.101
+    dns: 172.28.0.10
+    volumes:
+      - ./certs/ca.crt:/usr/local/share/ca-certificates/atp-ca.crt:ro
+      - ./agents:/agents:ro
+    environment:
+      - PI_AGENT_ROLE=bill
+      - ATP_AGENT_ID=bill@payment.test
+      - ATP_SERVER=server-payment.payment.test:7443
+      - ATP_PASSWORD=billpass
+      - ATP_PI_ADAPTER=/agents/pi_adapter.py
+      - LLM_API_BASE=${LLM_API_BASE:-https://dashscope.aliyuncs.com/compatible-mode/v1}
+      - LLM_API_MODEL=${LLM_API_MODEL:-qwen3.7-plus}
+      - LLM_API_KEY=${LLM_API_KEY:-}
+    command:
+      - sh
+      - -c
+      - |
+        update-ca-certificates 2>/dev/null
+        until curl -sk https://$$ATP_SERVER/.well-known/atp/v1/health > /dev/null 2>&1; do sleep 2; done
+        node /opt/atp-pi/runtime.mjs bill
+    depends_on:
+      - server-payment
+
+  # ── Event/Subscription demo (invoked on demand) ───────────────────────
+  # event-sub registers feed@hotel.test and long-polls; event-pub registers
+  # news@family.test and emits 5 events at 2s intervals. Run together via
+  # scripts/demo-event-subscription.sh.
+
+  event-sub:
+    image: atp-hackthon:latest
+    container_name: hack-event-sub
+    profiles: [events]
+    hostname: event-sub.hotel.test
+    networks:
+      atpnet:
+        ipv4_address: 172.28.2.102
+    dns: 172.28.0.10
+    volumes:
+      - ./certs/ca.crt:/usr/local/share/ca-certificates/atp-ca.crt:ro
+      - ./agents:/agents:ro
+    environment:
+      - ATP_SERVER=server-hotel.hotel.test:7443
+      - ATP_PASSWORD=feedpass
+      - ATP_EVENT_COUNT=5
+      - ATP_DEADLINE=60
+    command:
+      - sh
+      - -c
+      - |
+        update-ca-certificates 2>/dev/null
+        atp agent register feed --server $$ATP_SERVER -p $$ATP_PASSWORD --no-verify || true
+        python /agents/event_subscriber.py
+    depends_on:
+      - server-hotel
+
+  event-pub:
+    image: atp-hackthon:latest
+    container_name: hack-event-pub
+    profiles: [events]
+    hostname: event-pub.family.test
+    networks:
+      atpnet:
+        ipv4_address: 172.28.1.103
+    dns: 172.28.0.10
+    volumes:
+      - ./certs/ca.crt:/usr/local/share/ca-certificates/atp-ca.crt:ro
+      - ./agents:/agents:ro
+    environment:
+      - ATP_SERVER_FAMILY=server-family.family.test:7443
+      - ATP_NEWS_PASS=newspass
+      - ATP_EVENT_TARGET=feed@hotel.test
+      - ATP_EVENT_COUNT=5
+      - ATP_EVENT_INTERVAL=2
+    command:
+      - sh
+      - -c
+      - |
+        update-ca-certificates 2>/dev/null
+        atp agent register news --server $$ATP_SERVER_FAMILY -p $$ATP_NEWS_PASS --no-verify || true
+        python /agents/event_publisher.py
+    depends_on:
+      - server-family
+      - server-hotel
+
+  # ── Offline-queue demo sender (invoked on demand) ─────────────────────
+  # Sends one message from travel@family.test to bill@payment.test and exits
+  # immediately. Pair with scripts/demo-offline-queue.sh which toggles the
+  # payment server around this sender to exercise the cross-domain retry queue.
+  offline-sender:
+    image: atp-hackthon:latest
+    container_name: hack-offline-sender
+    profiles: [offline]
+    hostname: offline-sender.family.test
+    networks:
+      atpnet:
+        ipv4_address: 172.28.1.104
+    dns: 172.28.0.10
+    volumes:
+      - ./certs/ca.crt:/usr/local/share/ca-certificates/atp-ca.crt:ro
+      - ./agents:/agents:ro
+    environment:
+      - ATP_SERVER_FAMILY=server-family.family.test:7443
+      - ATP_TRAVEL_PASS=travelpass
+      - ATP_OFFLINE_TARGET=bill@payment.test
+    command:
+      - sh
+      - -c
+      - |
+        update-ca-certificates 2>/dev/null
+        python /agents/offline_sender.py
+    depends_on:
+      - server-family
+
+  # ── Scenario runner (invoked on demand by scripts/scenario.sh) ────────
+  # Runs Phase 1 (search) + Phase 2 (subscribe) + Phase 3 send (book+pay
+  # with payment offline). Emits JSONL trace events to stdout. Paired
+  # with scene-ack which long-polls for bill's ack after payment comes back.
+
+  scene-runner:
+    image: atp-hackthon:latest
+    container_name: hack-scene-runner
+    profiles: [scenario]
+    hostname: scene-runner.family.test
+    networks:
+      atpnet:
+        ipv4_address: 172.28.1.105
+    dns: 172.28.0.10
+    volumes:
+      - ./certs/ca.crt:/usr/local/share/ca-certificates/atp-ca.crt:ro
+      - ./agents:/agents:ro
+    environment:
+      - ATP_SERVER_FAMILY=server-family.family.test:7443
+      - ATP_TRAVEL_PASS=travelpass
+    command:
+      - sh
+      - -c
+      - |
+        update-ca-certificates 2>/dev/null
+        python /agents/scene_runner.py
+    depends_on:
+      - server-family
+      - server-hotel
+      - agent-search
+      - agent-rates
+
+  # ── Scenario ack receiver (invoked on demand by scripts/scenario.sh) ──
+  # Long-polls travel@family mailbox for bill's ack reply. Run AFTER
+  # scenario.sh has restarted payment + bill and forced family's delivery
+  # loop to retry the queued booking message.
+
+  scene-ack:
+    image: atp-hackthon:latest
+    container_name: hack-scene-ack
+    profiles: [scenario]
+    hostname: scene-ack.family.test
+    networks:
+      atpnet:
+        ipv4_address: 172.28.1.106
+    dns: 172.28.0.10
+    volumes:
+      - ./certs/ca.crt:/usr/local/share/ca-certificates/atp-ca.crt:ro
+      - ./agents:/agents:ro
+    environment:
+      - ATP_SERVER_FAMILY=server-family.family.test:7443
+      - ATP_TRAVEL_PASS=travelpass
+      - ATP_ACK_DEADLINE=60
+    command:
+      - sh
+      - -c
+      - |
+        update-ca-certificates 2>/dev/null
+        python /agents/scene_ack.py
+    depends_on:
+      - server-family
+
+  # ── Smoke test (invoked on demand) ───────────────────────────────────
+
+  smoke:
+    image: atp-hackthon:latest
+    container_name: hack-smoke
+    profiles:
+      - smoke
+    hostname: smoke.family.test
+    networks:
+      atpnet:
+        ipv4_address: 172.28.1.102
+    dns: 172.28.0.10
+    volumes:
+      - ./certs/ca.crt:/usr/local/share/ca-certificates/atp-ca.crt:ro
+      - ./agents:/agents:ro
+    environment:
+      - ATP_SERVER_FAMILY=server-family.family.test:7443
+      - ATP_TRAVEL_PASS=travelpass
+    command:
+      - sh
+      - -c
+      - |
+        update-ca-certificates 2>/dev/null
+        until curl -sk https://$$ATP_SERVER_FAMILY/.well-known/atp/v1/health > /dev/null 2>&1; do sleep 2; done
+        python /agents/smoke_test.py
+    depends_on:
+      - server-family
+      - server-hotel
+      - agent-search
+
+  # ── Demo Controller + LLM Travel Agent runtime ───────────────────────
+  # Long-running container that serves the visualization page (HTML/CSS/JS
+  # static files), provides a JSON API for trace reading + control ops,
+  # and streams live trace events via SSE. Talks to the Docker daemon via
+  # the mounted docker.sock using docker-py for stop/start/exec operations.
+  # Port 8080 is exposed to the host for browser access.
+
+  demo-controller:
+    image: atp-hackthon-demo:latest
+    container_name: hack-demo-controller
+    hostname: demo-controller.atp.test
+    networks:
+      atpnet:
+        ipv4_address: 172.28.4.1
+    dns: 172.28.0.10
+    ports:
+      - "8080:8080"
+    volumes:
+      # docker.sock lets the controller stop/start containers + exec for DB ops.
+      # This violates the plan's "Demo Controller does NOT access Docker socket"
+      # hardening goal — but for a LOCAL hackathon env it's the simplest path.
+      # A public interop deployment would replace these with isolated HTTP
+      # control endpoints on each ATP server.
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./certs/ca.crt:/usr/local/share/ca-certificates/atp-ca.crt:ro
+      # Agent source is mounted read-only; the controller launches travel_agent.py.
+      - ./agents:/agents:ro
+      - ./traces:/app/traces
+      - ./demo:/app/demo:ro
+    environment:
+      - ATP_TRACES_DIR=/app/traces
+      - ATP_AGENTS_DIR=/agents
+      - ATP_PI_RUNTIME=/opt/atp-pi/runtime.mjs
+      - ATP_PI_ADAPTER=/agents/pi_adapter.py
+      - ATP_SERVER_FAMILY=server-family.family.test:7443
+      - ATP_TRAVEL_PASS=travelpass
+      - LLM_API_BASE=${LLM_API_BASE:-https://dashscope.aliyuncs.com/compatible-mode/v1}
+      - LLM_API_PATH=${LLM_API_PATH:-/chat/completions}
+      - LLM_API_MODEL=${LLM_API_MODEL:-qwen3.7-plus}
+      - LLM_API_KEY=${LLM_API_KEY:-}
+      - LLM_API_TIMEOUT=${LLM_API_TIMEOUT:-60}
+      - LLM_AGENT_MAX_TURNS=${LLM_AGENT_MAX_TURNS:-30}
+      - SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt
+    command:
+      - sh
+      - -c
+      - |
+        update-ca-certificates 2>/dev/null
+        uvicorn demo.controller:app --host 0.0.0.0 --port 8080
+    depends_on:
+      - server-family
+      - server-hotel
+      - server-payment
+
+networks:
+  atpnet:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.28.0.0/16
+
+volumes:
+  server-family-data:
+  server-hotel-data:
+  server-payment-data:

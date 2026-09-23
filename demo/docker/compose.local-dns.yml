@@ -1,0 +1,3 @@
+services:
+  dns:
+    image: atp-hackathon-dns:local

@@ -1,0 +1,8 @@
+demo/web/node_modules
+agents/pi/node_modules
+.env
+.env.*
+certs
+traces
+.DS_Store
+**/__pycache__

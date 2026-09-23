@@ -1,0 +1,14 @@
+$ORIGIN payment.test.
+$TTL 300
+
+@    IN SOA  ns.payment.test. admin.payment.test. 1 3600 600 86400 300
+@    IN NS   ns.payment.test.
+ns   IN A    172.28.0.10
+
+_atp IN SVCB 1 server-payment.payment.test. alpn="atp/1" port=7443
+
+server-payment IN A 172.28.3.1
+
+ats._atp IN TXT "v=atp1 allow=ip:172.28.0.0/16 deny=all"
+
+default.atk._atp IN TXT "v=atp1 k=sm2 p=BNcvdaVi9/zcctynkztkeOluNQGkZDLgWyj7JiW2m+iCum3oDjLBILxL6sw15KUcRAQQwQUS8v3CJYIOdvap0hI="

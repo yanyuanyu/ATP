@@ -61,3 +61,5 @@ Desktop.ini
 *.swp
 *.swo
 *~
+
+node_modules/

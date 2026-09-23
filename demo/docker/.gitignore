@@ -1,0 +1,7 @@
+certs/
+*.pyc
+__pycache__/
+traces/
+demo/web/node_modules/
+.env
+agents/pi/node_modules/

@@ -1,0 +1,14 @@
+.git
+.venv
+.pytest_cache
+__pycache__
+**/__pycache__
+*.pyc
+.DS_Store
+.env
+**/.env
+**/.env.*
+**/certs
+**/traces
+**/node_modules
+demo

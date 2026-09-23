@@ -1,0 +1,14 @@
+$ORIGIN hotel.test.
+$TTL 300
+
+@    IN SOA  ns.hotel.test. admin.hotel.test. 1 3600 600 86400 300
+@    IN NS   ns.hotel.test.
+ns   IN A    172.28.0.10
+
+_atp IN SVCB 1 server-hotel.hotel.test. alpn="atp/1" port=7443
+
+server-hotel IN A 172.28.2.1
+
+ats._atp IN TXT "v=atp1 allow=ip:172.28.0.0/16 deny=all"
+
+default.atk._atp IN TXT "v=atp1 k=sm2 p=BOJX/f+ZwGOcaTG5pmSSyvSiIZbwMBY5QQ61E/NSSAl6l3JwNOA1R3DWCeFVXEqD1iyg8H5vK25BFaE07iB/kwA="
