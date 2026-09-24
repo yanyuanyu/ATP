@@ -219,7 +219,7 @@ const EMPTY_SCENARIO: ScenarioState = {
   step: "idle",
   step_index: 0,
   step_total: 7,
-  message: "Ready",
+  message: "就绪",
   started_at: null,
   ended_at: null,
   error: null,
@@ -249,13 +249,34 @@ function fmtTs(iso?: string) {
   return match ? match[1] : (iso || "")
 }
 
+function statusLabel(status?: string) {
+  const labels: Record<string, string> = {
+    idle: "空闲",
+    starting: "启动中",
+    running: "运行中",
+    capturing: "捕获中",
+    complete: "已完成",
+    completed: "已完成",
+    passed: "已通过",
+    failed: "失败",
+    ready: "就绪",
+    stopped: "已停止",
+    queued: "排队中",
+    thinking: "思考中",
+    retrying: "重试中",
+    offline: "离线",
+    live: "实时",
+  }
+  return status ? labels[status] || status : "空闲"
+}
+
 function summarize(event: EventRecord) {
   switch (event.event) {
     case "send":
     case "recv":
       return `${event.from || ""} → ${event.to || ""}: ${event.body || ""}`
     case "queue_state":
-      return `${event.nonce || "message"} ${event.status || "unknown"} · retry ${event.retry_count ?? 0}`
+      return `${event.nonce || "消息"} ${event.status || "未知"} · 重试 ${event.retry_count ?? 0}`
     case "container_stop":
     case "container_start":
       return `${event.target || "container"} · ${event.narrative || event.event}`
@@ -300,86 +321,86 @@ function routeForPacket(signal?: PacketSignal) {
 
 function protocolStages(event?: EventRecord, capture?: PacketCaptureState): { stages: ProtocolStage[]; basis: string } {
   const stages: ProtocolStage[] = [
-    { name: "Local submit", state: "skip", value: "not observed" },
-    { name: "DNS discovery", state: "skip", value: "not observed" },
-    { name: "TLS transport", state: "skip", value: "not observed" },
-    { name: "ATS policy", state: "skip", value: "not observed" },
-    { name: "ATK signature", state: "skip", value: "not observed" },
-    { name: "Delivery", state: "skip", value: "not observed" },
+    { name: "本地提交", state: "skip", value: "未观测到" },
+    { name: "DNS 发现", state: "skip", value: "未观测到" },
+    { name: "TLS 传输", state: "skip", value: "未观测到" },
+    { name: "ATS 策略", state: "skip", value: "未观测到" },
+    { name: "ATK 签名", state: "skip", value: "未观测到" },
+    { name: "投递", state: "skip", value: "未观测到" },
   ]
-  let basis = "trace record"
-  if (!event && !capture) return { stages, basis: "no evidence" }
+  let basis = "追踪记录"
+  if (!event && !capture) return { stages, basis: "暂无证据" }
 
   if (event?.event === "send") {
-    stages[0] = { name: "Local submit", state: event.status === "accepted" ? "pass" : "fail", value: event.status || "submitted" }
-    for (let index = 1; index < stages.length; index += 1) stages[index] = { ...stages[index], state: "pending", value: "awaiting transfer" }
+    stages[0] = { name: "本地提交", state: event.status === "accepted" ? "pass" : "fail", value: event.status || "已提交" }
+    for (let index = 1; index < stages.length; index += 1) stages[index] = { ...stages[index], state: "pending", value: "等待传输" }
   } else if (event?.event === "recv") {
     stages.splice(0, stages.length,
-      { name: "Local submit", state: "pass", value: "accepted upstream" },
-      { name: "DNS discovery", state: "pass", value: "path resolved" },
-      { name: "TLS transport", state: "pass", value: "completed" },
-      { name: "ATS policy", state: "pass", value: "recipient accepted" },
-      { name: "ATK signature", state: "pass", value: "recipient accepted" },
-      { name: "Delivery", state: "pass", value: "agent received" },
+      { name: "本地提交", state: "pass", value: "上游已接受" },
+      { name: "DNS 发现", state: "pass", value: "路径已解析" },
+      { name: "TLS 传输", state: "pass", value: "已完成" },
+      { name: "ATS 策略", state: "pass", value: "接收方已接受" },
+      { name: "ATK 签名", state: "pass", value: "接收方已接受" },
+      { name: "投递", state: "pass", value: "智能体已接收" },
     )
-    basis = "inferred from successful delivery"
+    basis = "根据成功投递推断"
   } else if (event?.event === "queue_state") {
-    stages[0] = { name: "Local submit", state: "pass", value: "stored by family" }
+    stages[0] = { name: "本地提交", state: "pass", value: "家庭域已存储" }
     if (event.status === "failed") {
-      stages[1] = { name: "DNS discovery", state: "info", value: "transfer attempted" }
-      stages[2] = { name: "TLS transport", state: "fail", value: "destination offline" }
-      stages[3] = { name: "ATS policy", state: "skip", value: "not reached" }
-      stages[4] = { name: "ATK signature", state: "skip", value: "not reached" }
-      stages[5] = { name: "Delivery", state: "pending", value: `retry ${event.retry_count ?? 0}` }
+      stages[1] = { name: "DNS 发现", state: "info", value: "已尝试传输" }
+      stages[2] = { name: "TLS 传输", state: "fail", value: "目标离线" }
+      stages[3] = { name: "ATS 策略", state: "skip", value: "尚未到达" }
+      stages[4] = { name: "ATK 签名", state: "skip", value: "尚未到达" }
+      stages[5] = { name: "投递", state: "pending", value: `重试 ${event.retry_count ?? 0}` }
     } else if (event.status === "delivered") {
       stages.splice(1, 5,
-        { name: "DNS discovery", state: "pass", value: "path resolved" },
-        { name: "TLS transport", state: "pass", value: "completed" },
-        { name: "ATS policy", state: "pass", value: "recipient accepted" },
-        { name: "ATK signature", state: "pass", value: "recipient accepted" },
-        { name: "Delivery", state: "pass", value: "remote delivered" },
+        { name: "DNS 发现", state: "pass", value: "路径已解析" },
+        { name: "TLS 传输", state: "pass", value: "已完成" },
+        { name: "ATS 策略", state: "pass", value: "接收方已接受" },
+        { name: "ATK 签名", state: "pass", value: "接收方已接受" },
+        { name: "投递", state: "pass", value: "远端已投递" },
       )
-      basis = "queue state plus delivery inference"
+      basis = "队列状态与投递推断"
     } else {
-      stages[5] = { name: "Delivery", state: "pending", value: event.status || "queued" }
+      stages[5] = { name: "投递", state: "pending", value: event.status || "已入队" }
     }
   } else if (event?.event === "force_retry") {
-    stages[0] = { name: "Queue timer", state: "info", value: "next_retry_at = 0" }
-    stages[5] = { name: "Delivery", state: "pending", value: "retry scheduled" }
+    stages[0] = { name: "队列计时器", state: "info", value: "next_retry_at = 0" }
+    stages[5] = { name: "投递", state: "pending", value: "已安排重试" }
   } else if (event?.event === "container_stop" || event?.event === "container_start") {
-    stages[2] = { name: "Destination", state: event.event === "container_start" ? "pass" : "fail", value: event.target || event.event }
+    stages[2] = { name: "目标端", state: event.event === "container_start" ? "pass" : "fail", value: event.target || event.event }
   } else if (event?.event === "scenario_end") {
-    stages[5] = { name: "Scenario result", state: event.status === "passed" ? "pass" : "fail", value: event.status || "complete" }
+    stages[5] = { name: "场景结果", state: event.status === "passed" ? "pass" : "fail", value: event.status || "完成" }
   }
 
   const packet = capture?.summary
   if (capture?.primary_evidence && capture.count > 0 && packet) {
-    basis = "packet capture primary"
+    basis = "以数据包捕获为主"
     if (packet.agent_edge_observed) {
-      stages[0] = { name: "Agent edge", state: "info", value: "TLS traffic observed" }
+      stages[0] = { name: "智能体边缘", state: "info", value: "已观测到 TLS 流量" }
     }
     if (packet.svcb_observed || packet.dns_observed) {
-      stages[1] = { name: "DNS discovery", state: "info", value: packet.svcb_observed ? "SVCB query observed" : "DNS query observed" }
+      stages[1] = { name: "DNS 发现", state: "info", value: packet.svcb_observed ? "已观测到 SVCB 查询" : "已观测到 DNS 查询" }
     }
     if (packet.tls_observed || packet.tcp_observed) {
       stages[2] = {
-        name: "TLS transport",
+        name: "TLS 传输",
         state: "info",
-        value: packet.tls_observed ? "TLS record observed" : "TCP SYN observed",
+        value: packet.tls_observed ? "已观测到 TLS 记录" : "已观测到 TCP SYN",
       }
     }
     if (packet.ats_lookup_observed) {
-      stages[3] = { name: "ATS policy", state: "info", value: "TXT lookup observed" }
+      stages[3] = { name: "ATS 策略", state: "info", value: "已观测到 TXT 查询" }
     }
     if (packet.atk_lookup_observed) {
-      stages[4] = { name: "ATK signature", state: "info", value: "TXT lookup observed" }
+      stages[4] = { name: "ATK 签名", state: "info", value: "已观测到 TXT 查询" }
     }
     if (packet.encrypted_data_observed && !["pass", "fail"].includes(stages[5].state)) {
-      stages[5] = { name: "Delivery", state: "info", value: "encrypted response observed" }
+      stages[5] = { name: "投递", state: "info", value: "已观测到加密响应" }
     }
     if (event?.event === "recv" || (event?.event === "queue_state" && event.status === "delivered")) {
-      stages[5] = { name: "Delivery", state: "pass", value: "agent/server confirmed" }
-      basis = "packet + delivery evidence"
+      stages[5] = { name: "投递", state: "pass", value: "智能体/服务器已确认" }
+      basis = "数据包与投递证据"
     }
   }
   return { stages, basis }
@@ -443,22 +464,22 @@ function SvgNode({
 }
 
 function evidenceLabel(signal?: PacketSignal) {
-  if (!signal) return "Waiting for network evidence"
-  if (signal.evidence === "svcb_lookup") return `SVCB lookup · ${signal.qname}`
-  if (signal.evidence === "ats_lookup") return `ATS record lookup · ${signal.qname}`
-  if (signal.evidence === "atk_lookup") return `ATK record lookup · ${signal.qname}`
-  if (signal.evidence === "dns_query") return `DNS query · ${signal.qname}`
-  if (signal.evidence === "tcp_connect") return `TCP connect · ${signal.src_node} → ${signal.dst_node}`
-  if (signal.evidence === "tls_handshake") return `TLS handshake record · ${signal.src_node} → ${signal.dst_node}`
-  if (signal.evidence === "tls_appdata") return `Encrypted ATP traffic · ${signal.bytes || 0} bytes`
-  if (signal.evidence === "tcp_reset") return `TCP reset · ${signal.src_node} → ${signal.dst_node}`
+  if (!signal) return "等待网络证据"
+  if (signal.evidence === "svcb_lookup") return `SVCB 查询 · ${signal.qname}`
+  if (signal.evidence === "ats_lookup") return `ATS 记录查询 · ${signal.qname}`
+  if (signal.evidence === "atk_lookup") return `ATK 记录查询 · ${signal.qname}`
+  if (signal.evidence === "dns_query") return `DNS 查询 · ${signal.qname}`
+  if (signal.evidence === "tcp_connect") return `TCP 连接 · ${signal.src_node} → ${signal.dst_node}`
+  if (signal.evidence === "tls_handshake") return `TLS 握手记录 · ${signal.src_node} → ${signal.dst_node}`
+  if (signal.evidence === "tls_appdata") return `加密 ATP 流量 · ${signal.bytes || 0} 字节`
+  if (signal.evidence === "tcp_reset") return `TCP 重置 · ${signal.src_node} → ${signal.dst_node}`
   return signal.evidence.replaceAll("_", " ")
 }
 
 function CaptureEvidenceRail({ capture }: { capture?: PacketCaptureState }) {
   const summary = capture?.summary
   const items = [
-    ["Agent edge", summary?.agent_edge_observed],
+    ["智能体边缘", summary?.agent_edge_observed],
     ["SVCB", summary?.svcb_observed],
     ["TCP", summary?.tcp_observed],
     ["TLS", summary?.tls_observed],
@@ -466,8 +487,8 @@ function CaptureEvidenceRail({ capture }: { capture?: PacketCaptureState }) {
     ["ATK TXT", summary?.atk_lookup_observed],
   ] as const
   return (
-    <div className="capture-rail" aria-label="Packet-derived ATP progress">
-      <span className="capture-rail-label"><RadioTower aria-hidden="true" />Packet evidence</span>
+    <div className="capture-rail" aria-label="基于数据包的 ATP 进度">
+      <span className="capture-rail-label"><RadioTower aria-hidden="true" />数据包证据</span>
       <div className="capture-rail-stages">
         {items.map(([label, observed], index) => (
           <span key={label} className={cn("capture-stage", observed && "is-observed")}>
@@ -492,8 +513,8 @@ function TopologyDiagram({ topology, capture }: { topology?: TopologyState; capt
 
   return (
       <svg className="topology-svg" viewBox="0 0 940 430" preserveAspectRatio="xMidYMid meet" role="img" aria-labelledby="topology-title topology-description">
-        <title id="topology-title">ATP local Docker topology with packet evidence</title>
-        <desc id="topology-description">Three ATP domains with live AF_PACKET evidence for DNS, TCP, TLS, ATS and ATK traffic.</desc>
+        <title id="topology-title">包含数据包证据的 ATP 本地 Docker 拓扑</title>
+        <desc id="topology-description">三个 ATP 域，以及 DNS、TCP、TLS、ATS 和 ATK 流量的实时 AF_PACKET 证据。</desc>
         <defs>
           <pattern id="topology-grid" width="24" height="24" patternUnits="userSpaceOnUse"><path d="M 24 0 L 0 0 0 24" /></pattern>
           <marker id="topology-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" /></marker>
@@ -517,7 +538,7 @@ function TopologyDiagram({ topology, capture }: { topology?: TopologyState; capt
           <g key={String(name)} className={`domain domain-${name}`}>
             <rect className="domain-box" x={Number(x)} y="120" width="290" height="282" rx="20" />
             <rect className="domain-accent" x={Number(x) + 18} y="120" width="48" height="3" rx="2" />
-            <text className="domain-kicker" x={Number(x) + 22} y="145">ATP DOMAIN</text>
+            <text className="domain-kicker" x={Number(x) + 22} y="145">ATP 域</text>
             <text className="domain-title" x={Number(x) + 22} y="164">{title}</text>
             <text className="domain-address" x={Number(x) + 268} y="161" textAnchor="end">{address}</text>
           </g>
@@ -527,14 +548,14 @@ function TopologyDiagram({ topology, capture }: { topology?: TopologyState; capt
         <path className="local-link" d="M 470 240 L 470 274 M 470 274 L 408 292 M 470 274 L 532 292" />
         <path className="local-link" d="M 775 240 L 775 292" />
 
-        <SvgNode x={410} y={24} width={120} title="DNS Server" meta="SVCB · ATS · ATK" kind="dns" state={state("dns")} active={active.has("dns")} />
-        <SvgNode x={84} y={176} width={162} title="Family ATP" meta={`queue ${queue("server-family")}`} kind="server" state={state("server-family")} active={active.has("server-family")} />
-        <SvgNode x={389} y={176} width={162} title="Hotel ATP" meta={`queue ${queue("server-hotel")}`} kind="server" state={state("server-hotel")} active={active.has("server-hotel")} />
-        <SvgNode x={694} y={176} width={162} title="Payment ATP" meta={`queue ${queue("server-payment")}`} kind="server" state={state("server-payment")} active={active.has("server-payment")} />
-        <SvgNode x={84} y={292} width={162} title="Travel Agent" meta="travel@family" state={capture?.summary.agent_edge_observed ? "running" : "idle"} active={active.has("travel@family.test")} />
-        <SvgNode x={342} y={292} width={132} title="Search Agent" meta="search@hotel" state={state("agent-search")} active={active.has("search@hotel.test")} />
-        <SvgNode x={482} y={292} width={132} title="Rates Agent" meta="rates@hotel" state={state("agent-rates")} active={active.has("rates@hotel.test")} />
-        <SvgNode x={694} y={292} width={162} title="Bill Agent" meta="bill@payment" state={state("agent-bill")} active={active.has("bill@payment.test")} />
+        <SvgNode x={410} y={24} width={120} title="DNS 服务器" meta="SVCB · ATS · ATK" kind="dns" state={state("dns")} active={active.has("dns")} />
+        <SvgNode x={84} y={176} width={162} title="家庭 ATP" meta={`队列 ${queue("server-family")}`} kind="server" state={state("server-family")} active={active.has("server-family")} />
+        <SvgNode x={389} y={176} width={162} title="酒店 ATP" meta={`队列 ${queue("server-hotel")}`} kind="server" state={state("server-hotel")} active={active.has("server-hotel")} />
+        <SvgNode x={694} y={176} width={162} title="支付 ATP" meta={`队列 ${queue("server-payment")}`} kind="server" state={state("server-payment")} active={active.has("server-payment")} />
+        <SvgNode x={84} y={292} width={162} title="旅行智能体" meta="travel@family" state={capture?.summary.agent_edge_observed ? "running" : "idle"} active={active.has("travel@family.test")} />
+        <SvgNode x={342} y={292} width={132} title="搜索智能体" meta="search@hotel" state={state("agent-search")} active={active.has("search@hotel.test")} />
+        <SvgNode x={482} y={292} width={132} title="价格智能体" meta="rates@hotel" state={state("agent-rates")} active={active.has("rates@hotel.test")} />
+        <SvgNode x={694} y={292} width={162} title="结算智能体" meta="bill@payment" state={state("agent-bill")} active={active.has("bill@payment.test")} />
 
         {path && latestPacket && (
           <g key={`packet-${latestPacket.pseq}-${path}`} className={cn("packet-motion", motionClass)} aria-hidden="true">
@@ -556,7 +577,7 @@ function TopologyEvidence({ capture }: { capture?: PacketCaptureState }) {
   return (
     <div className="topology-evidence-panel">
       <CaptureEvidenceRail capture={capture} />
-      <div className="capture-current"><Activity aria-hidden="true" /><span>{evidenceLabel(latestPacket)}</span><code>{latestPacket ? `packet #${latestPacket.pseq}` : capture?.status || "idle"}</code></div>
+      <div className="capture-current"><Activity aria-hidden="true" /><span>{evidenceLabel(latestPacket)}</span><code>{latestPacket ? `数据包 #${latestPacket.pseq}` : statusLabel(capture?.status)}</code></div>
     </div>
   )
 }
@@ -574,7 +595,7 @@ function ProtocolPanel({ capture }: { capture?: PacketCaptureState }) {
   return (
     <Card className="protocol-card min-h-0 overflow-hidden">
       <CardHeader className="border-b py-3">
-        <CardTitle className="flex items-center gap-2 text-sm"><ShieldCheck className="size-4 text-primary" />Protocol path</CardTitle>
+        <CardTitle className="flex items-center gap-2 text-sm"><ShieldCheck className="size-4 text-primary" />协议路径</CardTitle>
         <CardDescription className="line-clamp-1 text-xs">{evidenceLabel(latestPacket)}</CardDescription>
         <CardAction><Badge variant="outline" className="font-mono text-micro">{protocol.basis}</Badge></CardAction>
       </CardHeader>
@@ -591,10 +612,10 @@ function ProtocolPanel({ capture }: { capture?: PacketCaptureState }) {
       </CardContent>
       <CardFooter className="grid grid-cols-2 gap-3 border-t py-3 text-[10px] lg:grid-cols-4">
         {[
-          ["Sensor", latestPacket?.sensor],
-          ["From", latestPacket?.src_node],
-          ["To", latestPacket?.dst_node],
-          ["Evidence", latestPacket?.evidence],
+          ["传感器", latestPacket?.sensor],
+          ["来源", latestPacket?.src_node],
+          ["目标", latestPacket?.dst_node],
+          ["证据", latestPacket?.evidence],
         ].map(([label, value]) => (
           <span key={label} className="min-w-0"><small className="block uppercase tracking-wider text-muted-foreground">{label}</small><code className="block truncate font-mono text-foreground">{value || "—"}</code></span>
         ))}
@@ -604,17 +625,17 @@ function ProtocolPanel({ capture }: { capture?: PacketCaptureState }) {
 }
 
 function activitySummary(activity: ChatActivity) {
-  if (activity.tool === "atp_send") return `${activity.args.subject || "message"} → ${activity.args.to || "ATP"}`
-  if (activity.tool === "atp_receive") return `wait ${activity.args.wait_seconds || "?"}s for ATP delivery`
-  if (activity.tool === "get_task_state") return "inspect conversation task state"
+  if (activity.tool === "atp_send") return `${activity.args.subject || "消息"} → ${activity.args.to || "ATP"}`
+  if (activity.tool === "atp_receive") return `等待 ${activity.args.wait_seconds || "?"} 秒接收 ATP 投递`
+  if (activity.tool === "get_task_state") return "检查对话任务状态"
   return activity.tool.replaceAll("_", " ")
 }
 
 const AUDIT_AGENTS = [
-  { role: "travel", id: "travel@family.test", name: "Travel", detail: "User-facing orchestration" },
-  { role: "search", id: "search@hotel.test", name: "Search", detail: "Inventory response" },
-  { role: "rates", id: "rates@hotel.test", name: "Rates", detail: "Price event publisher" },
-  { role: "bill", id: "bill@payment.test", name: "Bill", detail: "Simulated authorization" },
+  { role: "travel", id: "travel@family.test", name: "旅行", detail: "面向用户的任务编排" },
+  { role: "search", id: "search@hotel.test", name: "搜索", detail: "库存查询响应" },
+  { role: "rates", id: "rates@hotel.test", name: "价格", detail: "价格事件发布" },
+  { role: "bill", id: "bill@payment.test", name: "结算", detail: "模拟支付授权" },
 ] as const
 
 function auditPreview(data: unknown) {
@@ -623,30 +644,30 @@ function auditPreview(data: unknown) {
 }
 
 function auditKind(kind: AgentAuditEvent["kind"]) {
-  if (kind === "user_input") return { label: "USER INPUT", icon: <MessageCircle /> }
-  if (kind === "atp_input") return { label: "ATP INPUT", icon: <Inbox /> }
-  if (kind === "tool_input") return { label: "TOOL INPUT", icon: <Send /> }
-  if (kind === "tool_output") return { label: "TOOL OUTPUT", icon: <FileJson2 /> }
-  return { label: "RESPONSE", icon: <Bot /> }
+  if (kind === "user_input") return { label: "用户输入", icon: <MessageCircle /> }
+  if (kind === "atp_input") return { label: "ATP 输入", icon: <Inbox /> }
+  if (kind === "tool_input") return { label: "工具输入", icon: <Send /> }
+  if (kind === "tool_output") return { label: "工具输出", icon: <FileJson2 /> }
+  return { label: "响应", icon: <Bot /> }
 }
 
 function decisionSummary(role: string, events: AgentAuditEvent[]) {
   const tools = [...new Set(events.filter((event) => event.kind === "tool_input").map((event) => event.title))]
   const inbound = events.find((event) => event.kind === "user_input" || event.kind === "atp_input")
   const response = events.some((event) => event.kind === "response")
-  if (!events.length) return "Waiting for an instruction or ATP delivery."
-  const source = inbound?.kind === "user_input" ? "the user instruction" : inbound ? "an ATP delivery" : "its current task state"
-  if (!tools.length) return `${role} received ${source} and is preparing a response.`
-  return `${role} used ${tools.join(" → ")} after ${source}${response ? ", then returned a response." : "."}`
+  if (!events.length) return "等待用户指令或 ATP 投递。"
+  const source = inbound?.kind === "user_input" ? "用户指令" : inbound ? "一条 ATP 投递" : "当前任务状态"
+  if (!tools.length) return `${role}智能体已收到${source}，正在准备响应。`
+  return `${role}智能体在收到${source}后调用了 ${tools.join(" → ")}${response ? "，随后返回了响应。" : "。"}`
 }
 
 function AgentAuditPanel({ chat }: { chat: ChatState }) {
   return (
     <Card className="agent-audit-card min-h-0 overflow-hidden">
       <CardHeader className="border-b py-3">
-        <CardTitle className="flex items-center gap-2 text-sm"><Activity className="size-4 text-primary" />Four-agent execution view</CardTitle>
-        <CardDescription className="text-xs">Application I/O, typed tool outputs, and observable decision summaries — separate from packet evidence.</CardDescription>
-        <CardAction><Badge variant="outline" className="font-mono">{chat.agent_audit.length} records</Badge></CardAction>
+        <CardTitle className="flex items-center gap-2 text-sm"><Activity className="size-4 text-primary" />四智能体执行视图</CardTitle>
+        <CardDescription className="text-xs">应用输入输出、类型化工具结果和可观测决策摘要——与数据包证据分开展示。</CardDescription>
+        <CardAction><Badge variant="outline" className="font-mono">{chat.agent_audit.length} 条记录</Badge></CardAction>
       </CardHeader>
       <CardContent className="min-h-0 flex-1 p-3">
         <div className="agent-audit-grid">
@@ -654,16 +675,16 @@ function AgentAuditPanel({ chat }: { chat: ChatState }) {
             const events = chat.agent_audit.filter((event) => event.role === agent.role)
             const latest = events.at(-1)
             return (
-              <section key={agent.role} className="agent-audit-column" aria-label={`${agent.name} Agent audit`}>
+              <section key={agent.role} className="agent-audit-column" aria-label={`${agent.name}智能体审计`}>
                 <header className="agent-audit-header">
                   <span className="agent-audit-avatar"><Bot /></span>
-                  <span className="min-w-0"><strong>{agent.name} Agent</strong><small>{agent.id} · {agent.detail}</small></span>
-                  <Badge variant={latest?.kind === "response" ? "success" : events.length ? "secondary" : "outline"}>{events.length || "idle"}</Badge>
+                  <span className="min-w-0"><strong>{agent.name}智能体</strong><small>{agent.id} · {agent.detail}</small></span>
+                  <Badge variant={latest?.kind === "response" ? "success" : events.length ? "secondary" : "outline"}>{events.length || "空闲"}</Badge>
                 </header>
-                <div className="agent-decision-summary"><Sparkles /><span><strong>Observable decision summary</strong><small>{decisionSummary(agent.name, events)}</small></span></div>
+                <div className="agent-decision-summary"><Sparkles /><span><strong>可观测决策摘要</strong><small>{decisionSummary(agent.name, events)}</small></span></div>
                 <ScrollArea className="agent-audit-scroll">
                   <div className="agent-audit-events">
-                    {!events.length && <div className="agent-audit-empty">No application-level record yet.</div>}
+                    {!events.length && <div className="agent-audit-empty">暂无应用层记录。</div>}
                     {events.map((event) => {
                       const meta = auditKind(event.kind)
                       return (
@@ -708,11 +729,11 @@ function AgentConversation({
   return (
     <Card className="chat-card min-h-0 overflow-hidden">
       <CardHeader className="border-b py-3">
-        <CardTitle className="flex items-center gap-2 text-sm"><MessageCircle className="size-4 text-primary" />Talk to Travel</CardTitle>
-        <CardDescription className="text-xs">Give the Agent a goal; every service hand-off still travels through ATP.</CardDescription>
+        <CardTitle className="flex items-center gap-2 text-sm"><MessageCircle className="size-4 text-primary" />与旅行智能体对话</CardTitle>
+        <CardDescription className="text-xs">为智能体设定目标；每次服务交接仍通过 ATP 完成。</CardDescription>
         <CardAction className="flex items-center gap-2">
-          <Badge variant={chat.runtime.status === "ready" ? "success" : "secondary"}><Bot />Agent</Badge>
-          <Tooltip><TooltipTrigger asChild><Button variant="ghost" size="icon-sm" aria-label="New conversation" disabled={busy} onClick={onReset}><Trash2 /></Button></TooltipTrigger><TooltipContent>New conversation</TooltipContent></Tooltip>
+          <Badge variant={chat.runtime.status === "ready" ? "success" : "secondary"}><Bot />智能体</Badge>
+          <Tooltip><TooltipTrigger asChild><Button variant="ghost" size="icon-sm" aria-label="新建对话" disabled={busy} onClick={onReset}><Trash2 /></Button></TooltipTrigger><TooltipContent>新建对话</TooltipContent></Tooltip>
         </CardAction>
       </CardHeader>
 
@@ -722,17 +743,17 @@ function AgentConversation({
             {!chat.messages.length && (
               <div className="chat-empty">
                 <span className="chat-empty-icon"><Bot /></span>
-                <strong>Travel Agent is ready</strong>
-                <p>Ask for a search, follow prices, or authorize a simulated booking. You can continue with follow-up messages in the same session.</p>
+                <strong>旅行智能体已就绪</strong>
+                <p>你可以让它搜索酒店、关注价格，或授权模拟预订；也可以在同一会话中继续追问。</p>
               </div>
             )}
             {chat.messages.map((message) => {
               const activities = chat.activities.filter((activity) => activity.request_id === message.request_id)
               return (
                 <div key={message.id} className={cn("chat-message", `is-${message.role}`)}>
-                  <div className="chat-avatar">{message.role === "assistant" ? <Bot /> : <span>YOU</span>}</div>
+                  <div className="chat-avatar">{message.role === "assistant" ? <Bot /> : <span>你</span>}</div>
                   <div className="chat-message-body">
-                    <div className="chat-message-meta"><strong>{message.role === "assistant" ? "Travel Agent" : "You"}</strong><span>{fmtTs(message.updated_at)}</span></div>
+                    <div className="chat-message-meta"><strong>{message.role === "assistant" ? "旅行智能体" : "你"}</strong><span>{fmtTs(message.updated_at)}</span></div>
                     <div className="chat-bubble">
                       {message.content || (message.status !== "failed" && <span className="agent-typing"><i /><i /><i /></span>)}
                     </div>
@@ -740,10 +761,10 @@ function AgentConversation({
                       <details className="agent-trace" open={activities.some((activity) => activity.status === "running") || undefined}>
                         <summary>
                           <span className="agent-trace-icon"><Activity /></span>
-                          <span><strong>ATP execution trace</strong><small>{activities.length} typed tool call{activities.length === 1 ? "" : "s"}</small></span>
+                          <span><strong>ATP 执行轨迹</strong><small>{activities.length} 次类型化工具调用</small></span>
                           <ChevronDown className="agent-trace-chevron" />
                         </summary>
-                        <div className="agent-activities" aria-label="Agent tool activity">
+                        <div className="agent-activities" aria-label="智能体工具活动">
                           {activities.map((activity) => (
                             <div key={activity.id} className={cn("agent-activity", `is-${activity.status}`)}>
                               <span className="agent-tool-icon">{activity.status === "running" ? <LoaderCircle className="animate-spin" /> : activity.status === "completed" ? <Check /> : <TriangleAlert />}</span>
@@ -763,18 +784,18 @@ function AgentConversation({
       </CardContent>
 
       <CardFooter className="chat-composer border-t">
-        <div className="quick-prompts" aria-label="Example instructions">
-          <Button type="button" variant="outline" size="sm" disabled={busy} onClick={() => onDraftChange("Search for a Paris hotel for two nights, but do not book yet.")}>Search only</Button>
-          <Button type="button" variant="outline" size="sm" disabled={busy} onClick={() => onDraftChange("Search for a Paris hotel for two nights, subscribe to three ParisGarden price updates, and complete the simulated booking and payment at the lowest price.")}>Full booking</Button>
+        <div className="quick-prompts" aria-label="示例指令">
+          <Button type="button" variant="outline" size="sm" disabled={busy} onClick={() => onDraftChange("搜索一家巴黎酒店并入住两晚，但暂时不要预订。")}>仅搜索</Button>
+          <Button type="button" variant="outline" size="sm" disabled={busy} onClick={() => onDraftChange("搜索一家巴黎酒店并入住两晚，订阅 ParisGarden 的三次价格更新，并以最低价格完成模拟预订和付款。")}>完整预订</Button>
         </div>
         <div className="composer-row">
-          <label className="sr-only" htmlFor="agent-message">Message Travel Agent</label>
+          <label className="sr-only" htmlFor="agent-message">给旅行智能体发送消息</label>
           <Textarea
             id="agent-message"
             value={draft}
             disabled={busy}
             rows={2}
-            placeholder="Tell Travel what you want to do…"
+            placeholder="告诉旅行智能体你想做什么……"
             onChange={(event) => onDraftChange(event.target.value)}
             onKeyDown={(event) => {
               if (event.key === "Enter" && !event.shiftKey) {
@@ -783,11 +804,11 @@ function AgentConversation({
               }
             }}
           />
-          <Button size="icon" aria-label="Send message" disabled={busy || !draft.trim()} onClick={onSend}>
+          <Button size="icon" aria-label="发送消息" disabled={busy || !draft.trim()} onClick={onSend}>
             {busy ? <LoaderCircle className="animate-spin" /> : <Send />}
           </Button>
         </div>
-        <div className="composer-meta"><span>{busy ? "Agent is reasoning and calling tools…" : "Enter to send · Shift+Enter for a new line"}</span><code>ATP connected</code></div>
+        <div className="composer-meta"><span>{busy ? "智能体正在推理并调用工具……" : "按 Enter 发送 · Shift+Enter 换行"}</span><code>ATP 已连接</code></div>
       </CardFooter>
     </Card>
   )
@@ -806,7 +827,7 @@ export default function App() {
   const [topology, setTopology] = useState<TopologyState>()
   const [packetCapture, setPacketCapture] = useState<PacketCaptureState>()
   const [liveState, setLiveState] = useState<LiveState>("offline")
-  const [statusMessage, setStatusMessage] = useState("Ready. Send the Travel Agent an instruction or select an existing run.")
+  const [statusMessage, setStatusMessage] = useState("已就绪。请向旅行智能体发送指令，或选择已有运行记录。")
   const [statusMeta, setStatusMeta] = useState("")
 
   const sourceRef = useRef<EventSource | null>(null)
@@ -839,7 +860,7 @@ export default function App() {
     source.addEventListener("trace", (message) => insertEvent(JSON.parse((message as MessageEvent).data) as EventRecord, true))
     source.addEventListener("heartbeat", (message) => {
       const payload = JSON.parse((message as MessageEvent).data) as { ts?: string; last_seq?: number }
-      setStatusMeta(`heartbeat ${fmtTs(payload.ts)} · seq ${payload.last_seq ?? "—"}`)
+      setStatusMeta(`心跳 ${fmtTs(payload.ts)} · 序号 ${payload.last_seq ?? "—"}`)
     })
     source.addEventListener("error", () => setLiveState("retrying"))
   }, [insertEvent, stopStream])
@@ -864,7 +885,7 @@ export default function App() {
     eventKeysRef.current = new Set()
     if (!runId) return
     await loadPacketEvidence(runId)
-    setStatusMessage("Loaded packet-capture evidence.")
+    setStatusMessage("已加载数据包捕获证据。")
     setStatusMeta(runId)
   }, [loadPacketEvidence, stopStream])
 
@@ -886,13 +907,13 @@ export default function App() {
       if (payload.packet_capture?.run_id === activeRunRef.current) setPacketCapture(payload.packet_capture)
       const status = payload.scenario?.status
       if (lastScenarioStatusRef.current !== status && ["passed", "failed"].includes(status)) {
-        setStatusMessage(status === "passed" ? "Scenario completed successfully." : "Scenario failed.")
+        setStatusMessage(status === "passed" ? "场景已成功完成。" : "场景执行失败。")
         setStatusMeta(payload.scenario.error || payload.scenario.run_id || "")
         void refreshRuns(payload.scenario.run_id || undefined)
       }
       lastScenarioStatusRef.current = status
     } catch (error) {
-      setStatusMessage("Controller state unavailable.")
+      setStatusMessage("控制器状态不可用。")
       setStatusMeta(String(error))
     }
   }, [refreshRuns])
@@ -916,7 +937,7 @@ export default function App() {
         await refreshTopology()
         if (!cancelled && list.length) await loadTrace(list[0].run_id, true)
       } catch (error) {
-        setStatusMessage("Unable to initialize the demo UI.")
+        setStatusMessage("无法初始化演示界面。")
         setStatusMeta(String(error))
       }
     })()
@@ -949,11 +970,11 @@ export default function App() {
       const response = await fetch(endpoint, { method: "POST" })
       const payload = await response.json() as { ts?: string }
       if (!response.ok) throw new Error(JSON.stringify(payload))
-      setStatusMessage(`${label} completed.`)
+      setStatusMessage(`${label}已完成。`)
       setStatusMeta(fmtTs(payload.ts))
       await refreshTopology()
     } catch (error) {
-      setStatusMessage(`${label} failed.`)
+      setStatusMessage(`${label}失败。`)
       setStatusMeta(String(error))
     }
   }
@@ -962,7 +983,7 @@ export default function App() {
     const message = draft.trim()
     if (!message || ["queued", "starting", "thinking"].includes(chat.status)) return
     setDraft("")
-    setStatusMessage("Travel Agent is handling your instruction…")
+    setStatusMessage("旅行智能体正在处理你的指令……")
     setStatusMeta("")
     try {
       const response = await fetch("/api/chat/messages", {
@@ -977,7 +998,7 @@ export default function App() {
       await loadTrace(payload.run_id)
     } catch (error) {
       setDraft(message)
-      setStatusMessage("Unable to send the instruction.")
+      setStatusMessage("无法发送指令。")
       setStatusMeta(String(error))
     }
   }
@@ -988,10 +1009,10 @@ export default function App() {
       const payload = await response.json() as { chat?: ChatState; error?: string }
       if (!response.ok || !payload.chat) throw new Error(payload.error || `HTTP ${response.status}`)
       setChat(payload.chat)
-      setStatusMessage("Started a new Agent conversation.")
+      setStatusMessage("已开始新的智能体对话。")
       setStatusMeta(payload.chat.session_id)
     } catch (error) {
-      setStatusMessage("Unable to reset the conversation.")
+      setStatusMessage("无法重置对话。")
       setStatusMeta(String(error))
     }
   }
@@ -1027,48 +1048,48 @@ export default function App() {
         <header className="app-header">
           <div className="brand-block">
             <div className="min-w-0">
-              <div className="flex items-center gap-2"><strong>ATP Local Travel Demo</strong><Badge variant="secondary" className="hidden sm:inline-flex">IETF 126</Badge></div>
+              <div className="flex items-center gap-2"><strong>ATP 本地旅行演示</strong><Badge variant="secondary" className="hidden sm:inline-flex">IETF 126</Badge></div>
               <p>family.test · hotel.test · payment.test</p>
             </div>
           </div>
 
           <div className="scenario-block">
-            <Badge variant="secondary" className="h-8 shrink-0 px-3"><Bot />4 Agents</Badge>
+            <Badge variant="secondary" className="h-8 shrink-0 px-3"><Bot />4 个智能体</Badge>
             <div className="min-w-0 flex-1">
-              <div className="mb-1.5 flex items-center justify-between gap-4 text-xs"><span className="truncate font-medium">{selectedPacket ? evidenceLabel(selectedPacket) : "Waiting for packet evidence"}</span><span className="font-mono text-muted-foreground">{packetProgressFlags.filter(Boolean).length}/6</span></div>
+              <div className="mb-1.5 flex items-center justify-between gap-4 text-xs"><span className="truncate font-medium">{selectedPacket ? evidenceLabel(selectedPacket) : "等待数据包证据"}</span><span className="font-mono text-muted-foreground">{packetProgressFlags.filter(Boolean).length}/6</span></div>
               <Progress value={progress} />
             </div>
           </div>
 
           <div className="run-block">
             <Select value={activeRunId} onValueChange={(value) => void loadTrace(value)}>
-              <SelectTrigger size="sm" className="run-select w-[220px] bg-background/70"><SelectValue placeholder="Select a run" /></SelectTrigger>
+              <SelectTrigger size="sm" className="run-select w-[220px] bg-background/70"><SelectValue placeholder="选择运行记录" /></SelectTrigger>
               <SelectContent>
-                {runs.map((run) => <SelectItem key={run.run_id} value={run.run_id} className="font-mono text-xs">{run.run_id} · {run.packet_events || 0} packets</SelectItem>)}
+                {runs.map((run) => <SelectItem key={run.run_id} value={run.run_id} className="font-mono text-xs">{run.run_id} · {run.packet_events || 0} 个数据包</SelectItem>)}
               </SelectContent>
             </Select>
-            <Tooltip><TooltipTrigger asChild><Button variant="outline" size="icon-sm" aria-label="Refresh run list" onClick={() => void refreshRuns()}><RefreshCw /></Button></TooltipTrigger><TooltipContent>Refresh runs</TooltipContent></Tooltip>
-            <Badge variant={packetCapture?.status === "capturing" ? "success" : "outline"}><RadioTower className={cn(packetCapture?.status === "starting" && "animate-pulse")} />{packetCapture?.status || "idle"}</Badge>
+            <Tooltip><TooltipTrigger asChild><Button variant="outline" size="icon-sm" aria-label="刷新运行记录" onClick={() => void refreshRuns()}><RefreshCw /></Button></TooltipTrigger><TooltipContent>刷新运行记录</TooltipContent></Tooltip>
+            <Badge variant={packetCapture?.status === "capturing" ? "success" : "outline"}><RadioTower className={cn(packetCapture?.status === "starting" && "animate-pulse")} />{statusLabel(packetCapture?.status)}</Badge>
           </div>
         </header>
 
         <div className="control-strip">
-          <span className="flex items-center gap-1.5 text-micro font-semibold uppercase tracking-[0.16em] text-muted-foreground"><Sparkles className="size-3.5" />Manual controls</span>
-          <Button variant="destructive" size="sm" disabled={scenarioRunning} onClick={() => void controlOp("/api/control/payment-stop", "Stop payment")}><Pause />Stop payment</Button>
-          <Button variant="outline" size="sm" disabled={scenarioRunning} onClick={() => void controlOp("/api/control/payment-start", "Start payment")}><Power />Start payment</Button>
-          <Button variant="outline" size="sm" disabled={scenarioRunning} onClick={() => void controlOp("/api/control/force-retry", "Force retry")}><RotateCcw />Force retry</Button>
-          <Button variant="ghost" size="sm" disabled={scenarioRunning || chatBusy} onClick={() => void controlOp("/api/control/soft-reset", "Soft reset")}><Database />Soft reset</Button>
-          <span className="ml-auto hidden text-xs text-muted-foreground xl:inline">Agent goals come from the conversation; failure injection remains explicit.</span>
+          <span className="flex items-center gap-1.5 text-micro font-semibold uppercase tracking-[0.16em] text-muted-foreground"><Sparkles className="size-3.5" />手动控制</span>
+          <Button variant="destructive" size="sm" disabled={scenarioRunning} onClick={() => void controlOp("/api/control/payment-stop", "停止支付")}><Pause />停止支付</Button>
+          <Button variant="outline" size="sm" disabled={scenarioRunning} onClick={() => void controlOp("/api/control/payment-start", "启动支付")}><Power />启动支付</Button>
+          <Button variant="outline" size="sm" disabled={scenarioRunning} onClick={() => void controlOp("/api/control/force-retry", "强制重试")}><RotateCcw />强制重试</Button>
+          <Button variant="ghost" size="sm" disabled={scenarioRunning || chatBusy} onClick={() => void controlOp("/api/control/soft-reset", "软重置")}><Database />软重置</Button>
+          <span className="ml-auto hidden text-xs text-muted-foreground xl:inline">智能体目标来自对话；故障注入仍需显式触发。</span>
         </div>
 
         <main className="dashboard-grid">
           <Card className="topology-card min-h-0 overflow-hidden">
             <CardHeader className="border-b py-3">
-              <CardTitle className="flex items-center gap-2 text-sm"><Network className="size-4 text-primary" />Live topology</CardTitle>
-              <CardDescription className="text-xs">Four independent Agent sessions; packet evidence reveals their ATP hand-offs.</CardDescription>
+              <CardTitle className="flex items-center gap-2 text-sm"><Network className="size-4 text-primary" />实时拓扑</CardTitle>
+              <CardDescription className="text-xs">四个独立的智能体会话；数据包证据展示其 ATP 交接过程。</CardDescription>
               <CardAction className="flex items-center gap-2">
-                <Badge variant={packetCapture?.status === "capturing" ? "success" : "secondary"}><RadioTower />{packetCapture?.status || "idle"}</Badge>
-                <Badge variant="outline" className="font-mono">{packetCapture?.count || 0} packets</Badge>
+                <Badge variant={packetCapture?.status === "capturing" ? "success" : "secondary"}><RadioTower />{statusLabel(packetCapture?.status)}</Badge>
+                <Badge variant="outline" className="font-mono">{packetCapture?.count || 0} 个数据包</Badge>
               </CardAction>
             </CardHeader>
             <CardContent className="topology-card-content p-2">
@@ -1089,13 +1110,13 @@ export default function App() {
 
           <Card className="timeline-card min-h-0 overflow-hidden">
             <CardHeader className="border-b py-3">
-              <CardTitle className="flex items-center gap-2 text-sm"><RadioTower className="size-4 text-primary" />Packet evidence <Badge variant="secondary">{packetCapture?.count || 0}</Badge></CardTitle>
-              <CardDescription className="font-mono text-micro">{activeRunId || "No run selected"}</CardDescription>
+              <CardTitle className="flex items-center gap-2 text-sm"><RadioTower className="size-4 text-primary" />数据包证据 <Badge variant="secondary">{packetCapture?.count || 0}</Badge></CardTitle>
+              <CardDescription className="font-mono text-micro">{activeRunId || "未选择运行记录"}</CardDescription>
             </CardHeader>
             <Tabs value={packetFilter} onValueChange={setPacketFilter} className="min-h-0 flex-1 gap-0">
               <div className="border-b px-3 py-2">
                 <TabsList className="grid w-full grid-cols-6">
-                  {[["all", "All"], ["dns", "DNS"], ["tcp", "TCP"], ["tls", "TLS"], ["policy", "ATS/ATK"], ["edge", "Agent"]].map(([value, label]) => <TabsTrigger key={value} value={value}>{label}</TabsTrigger>)}
+                  {[["all", "全部"], ["dns", "DNS"], ["tcp", "TCP"], ["tls", "TLS"], ["policy", "ATS/ATK"], ["edge", "智能体"]].map(([value, label]) => <TabsTrigger key={value} value={value}>{label}</TabsTrigger>)}
                 </TabsList>
               </div>
               <CardContent className="min-h-0 flex-1 p-0">
@@ -1116,7 +1137,7 @@ export default function App() {
                         <ArrowRight className="size-3.5 opacity-0 transition-all group-hover:translate-x-0.5 group-hover:opacity-60" />
                       </button>
                     ))}
-                    {!filteredPackets.length && <div className="grid min-h-48 place-items-center text-xs text-muted-foreground"><span className="flex items-center gap-2"><CircleDashed className="size-4" />No packet evidence in this category</span></div>}
+                    {!filteredPackets.length && <div className="grid min-h-48 place-items-center text-xs text-muted-foreground"><span className="flex items-center gap-2"><CircleDashed className="size-4" />此分类下暂无数据包证据</span></div>}
                     <div ref={timelineEndRef} />
                   </div>
                 </ScrollArea>
@@ -1128,13 +1149,13 @@ export default function App() {
 
           <Card className="detail-card min-h-0 overflow-hidden">
             <CardHeader className="border-b py-3">
-              <CardTitle className="flex items-center gap-2 text-sm"><FileJson2 className="size-4 text-primary" />Packet detail</CardTitle>
-              <CardDescription className="text-xs">Selected packet header fields</CardDescription>
+              <CardTitle className="flex items-center gap-2 text-sm"><FileJson2 className="size-4 text-primary" />数据包详情</CardTitle>
+              <CardDescription className="text-xs">所选数据包的头部字段</CardDescription>
               <CardAction><Badge variant="secondary" className="font-mono">#{selectedPacket?.pseq ?? "—"}</Badge></CardAction>
             </CardHeader>
             <CardContent className="min-h-0 flex-1 bg-muted p-0 text-foreground">
               <ScrollArea className="h-full">
-                <pre className="p-4 font-mono text-micro leading-relaxed whitespace-pre-wrap break-words">{selectedPacket ? JSON.stringify(selectedPacket, null, 2) : "Start a capture or select packet evidence."}</pre>
+                <pre className="p-4 font-mono text-micro leading-relaxed whitespace-pre-wrap break-words">{selectedPacket ? JSON.stringify(selectedPacket, null, 2) : "请开始捕获或选择数据包证据。"}</pre>
               </ScrollArea>
             </CardContent>
           </Card>
@@ -1143,7 +1164,7 @@ export default function App() {
         </main>
 
         <footer className="status-bar">
-          <span className="flex items-center gap-2"><span className={cn("size-1.5 rounded-full", chatBusy || packetCapture?.status === "capturing" ? "animate-pulse bg-emerald-500" : "bg-muted-foreground")} />Agent · {chat.status} · AF_PACKET {packetCapture?.count || 0}</span>
+          <span className="flex items-center gap-2"><span className={cn("size-1.5 rounded-full", chatBusy || packetCapture?.status === "capturing" ? "animate-pulse bg-emerald-500" : "bg-muted-foreground")} />智能体 · {statusLabel(chat.status)} · AF_PACKET {packetCapture?.count || 0}</span>
           <span className="font-mono text-muted-foreground">{chat.error || `${statusMessage}${statusMeta ? ` · ${statusMeta}` : ""}`}</span>
         </footer>
       </div>
