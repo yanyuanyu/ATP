@@ -124,10 +124,17 @@ class TestRuntimeServerConfig:
         assert cfg.local_mode is False
         assert cfg.max_message_size == 1_048_576
         assert cfg.key_algorithm == "sm2"
+        assert cfg.transport_mode == "tls"
+        assert cfg.tlcp_gateway_url == ""
 
     def test_from_cli_and_config_defaults(self):
         atp_config = ATPConfig(
-            server=ServerConfig(domain="file.local", port=8443),
+            server=ServerConfig(
+                domain="file.local",
+                port=8443,
+                admin_token="config-token",
+                max_message_size=12345,
+            ),
             local_mode=True,
             peers_file="peers.toml",
         )
@@ -137,6 +144,8 @@ class TestRuntimeServerConfig:
         assert cfg.local_mode is True
         assert cfg.peers_file == "peers.toml"
         assert cfg.key_algorithm == "sm2"
+        assert cfg.max_message_size == 12345
+        assert cfg.admin_token == "config-token"
 
     def test_cli_overrides_config(self):
         atp_config = ATPConfig(

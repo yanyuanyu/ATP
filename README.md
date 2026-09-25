@@ -22,8 +22,8 @@ DNS-based discovery, SM2/SM3 signing by default, server-mediated delivery.
     |              4. Domain-key Sign (ATK)    |                    |
     |                    |                     |                    |
     |                    |--[5. Transfer]----->|                    |
-    |                    |   TLS 1.3 + POST    |                    |
-    |                    |   (signed message)  |                    |
+    |                    | TLCP/TLS 1.3 + POST |                    |
+    |                    | (encrypted+signed)  |                    |
     |                    |                     |                    |
     |                    |               6. ATS+ATK Verify (DNS)   |
     |                    |               7. Sender Authenticated   |
@@ -47,6 +47,8 @@ Agents need a standard way to communicate across the Internet: securely, without
 | **Identity** | `local@domain` format, powered by DNS |
 | **Discovery** | DNS SVCB records, no central registry needed |
 | **Signing** | SM2/SM3 on every message by default, verified on cross-domain transfer |
+| **Payload protection** | SM4-CBC with SM3 authentication; SM2-wrapped per-message session keys for cross-domain delivery |
+| **Transport protection** | TLCP with SM2/SM3/SM4 in the competition Docker profile; TLS 1.3 compatibility mode remains available |
 | **Authorization** | ATS policies in DNS, control who can send for your domain |
 | **Delivery** | Store-and-forward with retry, messages don't get lost |
 
@@ -220,7 +222,7 @@ ATP provides four layers of security, inspired by email's battle-tested approach
 
 | Layer | ATP | Email Equivalent | Purpose |
 |-------|-----|-----------------|---------|
-| Transport | TLS 1.3 | STARTTLS | Encrypted connections |
+| Transport | TLCP (competition profile) or TLS 1.3 | STARTTLS | Encrypted connections |
 | Authentication | Credential | SMTP AUTH | Agent identity (username + password) |
 | Authorization | ATS | SPF | Who can send for a domain |
 | Integrity | ATK (SM2/SM3) | DKIM | Message signing & verification |

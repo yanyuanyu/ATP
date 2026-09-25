@@ -11,4 +11,4 @@ server-hotel IN A 172.28.2.1
 
 ats._atp IN TXT "v=atp1 allow=ip:172.28.0.0/16 deny=all"
 
-default.atk._atp IN TXT "v=atp1 k=sm2 p=BOJX/f+ZwGOcaTG5pmSSyvSiIZbwMBY5QQ61E/NSSAl6l3JwNOA1R3DWCeFVXEqD1iyg8H5vK25BFaE07iB/kwA="
+default.atk._atp IN TXT "v=atp1 k=sm2 p=BKoHir+iGDQXZ3zYvmirlsSykztf8SQeHvq2J4yMb+N9gp8xe2gm4UXjasnDum0+aLRVdBzC9lt0lYoKAf+XAfM="

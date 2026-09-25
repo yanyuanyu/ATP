@@ -14,8 +14,8 @@ printf '%s' "$INDEX_HTML" | grep -q '<div id="root"></div>'
 ASSET_PATH="$(printf '%s' "$INDEX_HTML" | grep -oE '/static/assets/[^\" ]+\.js' | head -1)"
 test -n "$ASSET_PATH"
 curl -fsS "$DEMO_URL$ASSET_PATH" > "$TMP_DIR/app.js"
-grep -q 'Live topology' "$TMP_DIR/app.js"
-grep -q 'Talk to Travel' "$TMP_DIR/app.js"
+grep -q '实时拓扑' "$TMP_DIR/app.js"
+grep -q '与旅行智能体对话' "$TMP_DIR/app.js"
 curl -fsS "$DEMO_URL/api/state/topology" | jq -e '
   .containers["server-family"] == "running" and
   .containers["server-hotel"] == "running" and

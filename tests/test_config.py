@@ -17,6 +17,8 @@ class TestConfigStorage:
                 port=8443,
                 tls_cert="/path/to/cert.pem",
                 tls_key="/path/to/key.pem",
+                admin_token="secret-token",
+                max_message_size=12345,
             ),
             local_mode=True,
             peers_file="/etc/atp/peers.json",
@@ -34,6 +36,8 @@ class TestConfigStorage:
         assert loaded.server.port == 8443
         assert loaded.server.tls_cert == "/path/to/cert.pem"
         assert loaded.server.tls_key == "/path/to/key.pem"
+        assert loaded.server.admin_token == "secret-token"
+        assert loaded.server.max_message_size == 12345
         assert loaded.local_mode is True
         assert loaded.peers_file == "/etc/atp/peers.json"
         assert loaded.dns_override_file == "/etc/atp/dns.json"

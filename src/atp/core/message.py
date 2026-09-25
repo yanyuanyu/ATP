@@ -32,6 +32,37 @@ class SignatureEnvelope:
     @classmethod
     def from_dict(cls, data: dict) -> "SignatureEnvelope":
         """Deserialize a signature envelope from a dictionary."""
+        if not isinstance(data, dict):
+            raise MessageFormatError(
+                ATPErrorCode.INVALID_MESSAGE_FORMAT,
+                "signature must be an object",
+            )
+        required_fields = ["key_id", "algorithm", "signature", "headers", "timestamp"]
+        for field_name in required_fields:
+            if field_name not in data:
+                raise MessageFormatError(
+                    ATPErrorCode.INVALID_MESSAGE_FORMAT,
+                    f"Missing signature field: {field_name!r}",
+                )
+        for field_name in ("key_id", "algorithm", "signature"):
+            if not isinstance(data[field_name], str) or not data[field_name]:
+                raise MessageFormatError(
+                    ATPErrorCode.INVALID_MESSAGE_FORMAT,
+                    f"Signature field {field_name!r} must be a non-empty string",
+                )
+        if (
+            not isinstance(data["headers"], list)
+            or not all(isinstance(item, str) and item for item in data["headers"])
+        ):
+            raise MessageFormatError(
+                ATPErrorCode.INVALID_MESSAGE_FORMAT,
+                "Signature field 'headers' must be a list of non-empty strings",
+            )
+        if isinstance(data["timestamp"], bool) or not isinstance(data["timestamp"], int):
+            raise MessageFormatError(
+                ATPErrorCode.INVALID_MESSAGE_FORMAT,
+                "Signature field 'timestamp' must be an integer",
+            )
         return cls(
             key_id=data["key_id"],
             algorithm=data["algorithm"],
@@ -134,6 +165,12 @@ class ATPMessage:
 
         Reads "from"/"to" keys. Raises MessageFormatError on missing required fields.
         """
+        if not isinstance(data, dict):
+            raise MessageFormatError(
+                ATPErrorCode.INVALID_MESSAGE_FORMAT,
+                "Message must be a JSON object",
+            )
+
         required_fields = ["from", "to", "timestamp", "nonce", "type", "payload"]
         for field_name in required_fields:
             if field_name not in data:
@@ -141,6 +178,23 @@ class ATPMessage:
                     ATPErrorCode.INVALID_MESSAGE_FORMAT,
                     f"Missing required field: {field_name!r}",
                 )
+
+        for field_name in ("from", "to", "nonce", "type"):
+            if not isinstance(data[field_name], str) or not data[field_name]:
+                raise MessageFormatError(
+                    ATPErrorCode.INVALID_MESSAGE_FORMAT,
+                    f"Field {field_name!r} must be a non-empty string",
+                )
+        if isinstance(data["timestamp"], bool) or not isinstance(data["timestamp"], int):
+            raise MessageFormatError(
+                ATPErrorCode.INVALID_MESSAGE_FORMAT,
+                "Field 'timestamp' must be an integer",
+            )
+        if not isinstance(data["payload"], dict):
+            raise MessageFormatError(
+                ATPErrorCode.INVALID_MESSAGE_FORMAT,
+                "Field 'payload' must be an object",
+            )
 
         message_type = data["type"]
         if message_type not in cls.VALID_TYPES:
@@ -153,6 +207,25 @@ class ATPMessage:
                 ATPErrorCode.INVALID_MESSAGE_FORMAT,
                 "Response messages require in_reply_to",
             )
+        if "cc" in data and (
+            not isinstance(data["cc"], list)
+            or not all(isinstance(item, str) and item for item in data["cc"])
+        ):
+            raise MessageFormatError(
+                ATPErrorCode.INVALID_MESSAGE_FORMAT,
+                "Field 'cc' must be a list of non-empty strings",
+            )
+        if "routing" in data and data["routing"] is not None and not isinstance(data["routing"], dict):
+            raise MessageFormatError(
+                ATPErrorCode.INVALID_MESSAGE_FORMAT,
+                "Field 'routing' must be an object",
+            )
+        for field_name in ("in_reply_to", "task_id", "context_id"):
+            if field_name in data and data[field_name] is not None and not isinstance(data[field_name], str):
+                raise MessageFormatError(
+                    ATPErrorCode.INVALID_MESSAGE_FORMAT,
+                    f"Field {field_name!r} must be a string",
+                )
 
         signature = None
         if "signature" in data and data["signature"] is not None:

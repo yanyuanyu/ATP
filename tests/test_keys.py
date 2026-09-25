@@ -147,3 +147,10 @@ class TestKeyStorage:
         assert ks.has_key("default", "sm2") is False
         with pytest.raises(StorageError):
             ks.load_key_pair("default", "sm2")
+
+    @pytest.mark.parametrize("selector", ["../escaped", "A", "a/b", "", "a" * 64])
+    def test_invalid_selector_is_rejected(self, tmp_path: Path, selector: str) -> None:
+        ks = KeyStorage(keys_dir=tmp_path / "keys")
+
+        with pytest.raises(StorageError):
+            ks.generate(selector, "sm2")

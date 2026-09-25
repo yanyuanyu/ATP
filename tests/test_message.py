@@ -159,6 +159,45 @@ class TestATPMessageFromDictErrors:
                 "type": "message",
             })
 
+    @pytest.mark.parametrize(
+        ("field", "value"),
+        [
+            ("from", 123),
+            ("to", ["bob@b.com"]),
+            ("timestamp", "123"),
+            ("nonce", 123),
+            ("type", 1),
+            ("payload", "not-an-object"),
+        ],
+    )
+    def test_invalid_field_types_raise_format_error(self, field, value):
+        data = {
+            "from": "alice@a.com",
+            "to": "bob@b.com",
+            "timestamp": 123,
+            "nonce": "msg-abc",
+            "type": "message",
+            "payload": {},
+        }
+        data[field] = value
+
+        with pytest.raises(MessageFormatError):
+            ATPMessage.from_dict(data)
+
+    def test_invalid_optional_field_types_raise_format_error(self):
+        data = ATPMessage.create("alice@a.com", "bob@b.com", {"text": "hi"}).to_dict()
+        data["cc"] = "bob@b.com"
+
+        with pytest.raises(MessageFormatError):
+            ATPMessage.from_dict(data)
+
+    def test_invalid_signature_envelope_raises_format_error(self):
+        data = ATPMessage.create("alice@a.com", "bob@b.com", {"text": "hi"}).to_dict()
+        data["signature"] = {"algorithm": "sm2"}
+
+        with pytest.raises(MessageFormatError):
+            ATPMessage.from_dict(data)
+
 
 class TestSignatureEnvelope:
     """Test SignatureEnvelope round-trip."""

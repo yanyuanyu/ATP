@@ -8,6 +8,9 @@ from atp.core.message import ATPMessage
 from atp.core.identity import AgentID
 from atp.core.signature import Signer
 from atp.discovery.dns import BaseDNSResolver
+from atp.security.atk import ATKRecord
+from atp.security.sm2 import SM2PublicKey
+from atp.security.sm4 import encrypt_payload, message_aad
 from atp.storage.messages import MessageStore, MessageStatus
 
 logger = logging.getLogger("atp.server.delivery")
@@ -23,6 +26,8 @@ class DeliveryManager:
         server_domain: str,
         max_retries: int = 6,
         metrics=None,
+        payload_encryption: bool = False,
+        encryption_selector: str = "default",
     ):
         self._store = message_store
         self._resolver = dns_resolver
@@ -31,6 +36,8 @@ class DeliveryManager:
         self._domain = server_domain
         self._max_retries = max_retries
         self._metrics = metrics
+        self._payload_encryption = payload_encryption
+        self._encryption_selector = encryption_selector
         self._task: asyncio.Task | None = None
         self._running = False
 
@@ -94,14 +101,53 @@ class DeliveryManager:
         public key, not against any individual agent's key.
         """
         try:
-            # Sign with domain-level key before transfer
-            self._signer.sign(message)
-
             target = AgentID.parse(message.to_id)
             server_info = await self._resolver.query_svcb(target.domain)
             if not server_info:
                 logger.error(f"Cannot discover server for {target.domain}")
                 return False
+
+            # Protect the payload before ATK signing.  Intermediate ATP servers
+            # can route the envelope, but only the recipient domain key can
+            # unwrap the SM4 session key.
+            if self._payload_encryption and not message.payload.get("_atp_encrypted"):
+                key_name = f"{self._encryption_selector}.atk._atp.{target.domain}"
+                txt_record = await self._resolver.query_txt(key_name)
+                if not txt_record:
+                    logger.error("Cannot encrypt for %s: ATK key not found", target.domain)
+                    return False
+                record = ATKRecord.parse(txt_record)
+                if not record.is_valid():
+                    logger.error("Cannot encrypt for %s: recipient ATK key is revoked or expired", target.domain)
+                    return False
+                if record.algorithm != "sm2":
+                    logger.error(
+                        "Cannot encrypt for %s: recipient key algorithm is %s",
+                        target.domain,
+                        record.algorithm,
+                    )
+                    return False
+                public_key = record.get_public_key()
+                if not isinstance(public_key, SM2PublicKey):
+                    logger.error("Cannot encrypt for %s: recipient key is not SM2", target.domain)
+                    return False
+                message.payload = encrypt_payload(
+                    message.payload,
+                    recipient_public_key=public_key,
+                    aad=message_aad(
+                        from_id=message.from_id,
+                        to_id=message.to_id,
+                        timestamp=message.timestamp,
+                        nonce=message.nonce,
+                        message_type=message.type,
+                    ),
+                )
+
+            # Sign the final envelope.  The ATK signature must cover the
+            # ciphertext, otherwise a receiver would verify a different
+            # payload after encryption.
+            self._signer.sign(message)
+
             base_url = f"https://{server_info.host}:{server_info.port}"
             result = await self._transport.post_message(base_url, message)
             return result.success

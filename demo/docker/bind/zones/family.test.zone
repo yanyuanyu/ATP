@@ -11,4 +11,4 @@ server-family IN A 172.28.1.1
 
 ats._atp IN TXT "v=atp1 allow=ip:172.28.0.0/16 deny=all"
 
-default.atk._atp IN TXT "v=atp1 k=sm2 p=BOV+5PZ/weviLe9bmzoJCOkS24DzgktzyGQouWfQxaBy9GkXUaNP/wpa0xycbk2wvtJtO0jDEWRkMYh7cZ29ObI="
+default.atk._atp IN TXT "v=atp1 k=sm2 p=BF/i/r2rD3RQNqNRE3KxuIXwFd/ikWj3w3+lBTUa63tB7Q8dEZbD/KjmfdyXXZ464GfnaPcmEHlXvhjFtdTs/Uw="

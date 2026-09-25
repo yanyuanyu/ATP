@@ -83,6 +83,8 @@ class ConfigStorage:
         lines.append(f"port = {config.server.port}")
         lines.append(f'tls_cert = "{config.server.tls_cert}"')
         lines.append(f'tls_key = "{config.server.tls_key}"')
+        lines.append(f'admin_token = "{config.server.admin_token}"')
+        lines.append(f"max_message_size = {config.server.max_message_size}")
         lines.append("")
 
         config_path.write_text("\n".join(lines), encoding="utf-8")

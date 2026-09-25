@@ -22,6 +22,9 @@ class RuntimeServerConfig:
     retry_max_attempts: int = 6
     log_level: str = "INFO"
     admin_token: str = ""
+    payload_encryption: bool = True
+    transport_mode: str = "tls"
+    tlcp_gateway_url: str = ""
 
     @classmethod
     def from_cli_and_config(cls, cli_args: dict, atp_config: ATPConfig) -> "RuntimeServerConfig":
@@ -41,6 +44,7 @@ class RuntimeServerConfig:
         dns_override_file = atp_config.dns_override_file or None
         key_selector = atp_config.key_selector
         key_algorithm = atp_config.key_algorithm
+        max_message_size = atp_config.server.max_message_size
         log_level = "INFO"
 
         # CLI overrides (only if present and non-None)
@@ -80,6 +84,7 @@ class RuntimeServerConfig:
             dns_override_file=dns_override_file,
             key_selector=key_selector,
             key_algorithm=key_algorithm,
+            max_message_size=max_message_size,
             log_level=log_level,
             admin_token=admin_token,
         )

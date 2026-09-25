@@ -1,8 +1,14 @@
 #!/bin/bash
 # Generate CA + 3 domain certs (family.test, hotel.test, payment.test).
 set -euo pipefail
+# Prevent Git Bash from rewriting OpenSSL arguments such as /CN=... and
+# Windows paths before they reach the native OpenSSL executable.
+export MSYS2_ARG_CONV_EXCL='*'
 DOCKER_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-CERT_DIR="$DOCKER_DIR/certs"
+cd "$DOCKER_DIR"
+# Keep paths relative so both native Windows OpenSSL and Linux OpenSSL can
+# write them while argument conversion is disabled for /CN=... subjects.
+CERT_DIR="certs"
 mkdir -p "$CERT_DIR"
 
 # 1. Hackathon CA
@@ -45,4 +51,12 @@ openssl x509 -req -in "$CERT_DIR/payment.test.csr" \
   -out "$CERT_DIR/payment.test.crt"
 
 rm -f "$CERT_DIR"/*.csr "$CERT_DIR"/*.srl
+
+# 2. SM2 certificate authority and TLCP dual certificates. Generate them
+# with the same national-crypto library used by the gateways so SM2
+# certificate signatures have identical encoding and user-ID semantics.
+docker run --rm --user 0:0 \
+  -v "$(pwd -W)/$CERT_DIR:/certs" \
+  atp-tlcp-gateway:latest certgen /certs
+
 echo "Certificates generated in $CERT_DIR"

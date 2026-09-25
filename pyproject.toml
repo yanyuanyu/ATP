@@ -9,7 +9,7 @@ description = "Agent Transfer Protocol (ATP): secure agent-to-agent communicatio
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.11"
-keywords = ["agent", "protocol", "atp", "agent-to-agent", "dns", "sm2", "sm3", "ed25519"]
+keywords = ["agent", "protocol", "atp", "agent-to-agent", "dns", "sm2", "sm3", "sm4", "ed25519"]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",

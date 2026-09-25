@@ -5,6 +5,7 @@ cd "$(dirname "$0")/.."
 
 echo '=== Step 1: Build Docker images ==='
 bash scripts/build.sh
+bash scripts/build-tlcp.sh
 bash scripts/build-demo.sh
 
 echo '=== Step 2: Generate TLS certificates ==='

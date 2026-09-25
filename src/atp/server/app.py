@@ -1,6 +1,7 @@
 """ATP server application — wires together all components and runs via uvicorn."""
 
 import logging
+import os
 from contextlib import asynccontextmanager
 
 import uvicorn
@@ -37,6 +38,7 @@ class ATPServer:
         self.delivery_manager: DeliveryManager | None = None
         self.metrics: ServerMetrics | None = None
         self.signer: Signer | None = None
+        self.encryption_private_key = None
         self.agent_store: AgentStore | None = None
         self._config_storage: ConfigStorage | None = None
 
@@ -97,6 +99,11 @@ class ATPServer:
             self.config.key_selector, self.config.key_algorithm
         )
         self.signer = Signer(private_key, self.config.key_selector, self.config.domain)
+        # SM4 payloads use the domain SM2 key to unwrap their per-message
+        # session key.  Ed25519 remains available for signature compatibility,
+        # but cannot be used as an SM4 key-transport key.
+        if self.config.payload_encryption and self.config.key_algorithm == "sm2":
+            self.encryption_private_key = private_key
 
         # Metrics
         self.metrics = ServerMetrics()
@@ -104,7 +111,17 @@ class ATPServer:
         # Transport (lazy import to avoid circular deps)
         from atp.client.transport import HTTPTransport
 
-        transport = HTTPTransport(no_verify=self.config.local_mode)
+        transport_mode = os.environ.get(
+            "ATP_TRANSPORT_MODE", self.config.transport_mode
+        ).strip().lower()
+        tlcp_gateway_url = os.environ.get(
+            "ATP_TLCP_GATEWAY_URL", self.config.tlcp_gateway_url
+        ).strip()
+        transport = HTTPTransport(
+            no_verify=self.config.local_mode,
+            transport_mode=transport_mode,
+            tlcp_gateway_url=tlcp_gateway_url,
+        )
 
         # Delivery manager
         self.delivery_manager = DeliveryManager(
@@ -115,6 +132,7 @@ class ATPServer:
             server_domain=self.config.domain,
             max_retries=self.config.retry_max_attempts,
             metrics=self.metrics,
+            payload_encryption=self.config.payload_encryption,
         )
 
         # Starlette app
@@ -150,5 +168,13 @@ class ATPServer:
         if self.config.tls_cert_path and self.config.tls_key_path:
             kwargs["ssl_certfile"] = self.config.tls_cert_path
             kwargs["ssl_keyfile"] = self.config.tls_key_path
+            # Uvicorn 0.34+ supports a context factory.  Use the project's
+            # TLSConfig so the documented TLS 1.3 minimum is applied to the
+            # actual server socket rather than only to standalone helpers.
+            kwargs["ssl_context_factory"] = (
+                lambda _config, _default_factory: TLSConfig.create_server_context(
+                    self.config.tls_cert_path, self.config.tls_key_path
+                )
+            )
 
         uvicorn.run(self.app, **kwargs)

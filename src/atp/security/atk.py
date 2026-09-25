@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import base64
 import logging
+import re
 import time
 from dataclasses import dataclass, field
 from typing import Optional
@@ -22,6 +23,9 @@ from atp.discovery.dns import BaseDNSResolver
 from atp.security.sm2 import SM2PublicKey
 
 logger = logging.getLogger(__name__)
+
+_ATK_VERSION = "atp1"
+_SELECTOR_PATTERN = re.compile(r"[a-z0-9][a-z0-9_-]{0,62}\Z")
 
 
 @dataclass
@@ -38,7 +42,8 @@ class ATKRecord:
     def parse(cls, txt_record: str) -> ATKRecord:
         """Parse a TXT record like ``v=atp1 k=sm2 p=BASE64... [t=s] [x=...]``.
 
-        Raises :class:`ATKError` if any of ``v``, ``k``, or ``p`` is missing.
+        Raises :class:`ATKError` if any of ``v``, ``k``, or ``p`` is missing,
+        or if the record declares an unsupported ATP version.
         """
         fields: dict[str, str] = {}
         for token in txt_record.strip().split():
@@ -52,6 +57,12 @@ class ATKRecord:
                     ATPErrorCode.ATK_KEY_NOT_FOUND,
                     f"ATK record missing required field '{required}'",
                 )
+
+        if fields["v"] != _ATK_VERSION:
+            raise ATKError(
+                ATPErrorCode.ATK_KEY_NOT_FOUND,
+                f"Unsupported ATK record version: {fields['v']!r}",
+            )
 
         flags_str = fields.get("t", "")
         flags = [f for f in flags_str.split(",") if f] if flags_str else []
@@ -75,7 +86,9 @@ class ATKRecord:
         )
 
     def is_valid(self) -> bool:
-        """Return ``True`` if the key is neither revoked nor expired."""
+        """Return ``True`` if this is a supported, active ATK key."""
+        if self.version != _ATK_VERSION:
+            return False
         if "r" in self.flags or "s" in self.flags:
             return False
         if self.expiry is not None and self.expiry <= int(time.time()):
@@ -217,12 +230,30 @@ class ATKVerifier:
         Raises :class:`ATKError` if the expected pattern is not found.
         """
         separator = ".atk._atp."
-        if separator not in key_id:
+        if not isinstance(key_id, str) or key_id.count(separator) != 1:
             raise ATKError(
                 ATPErrorCode.ATK_KEY_NOT_FOUND,
                 f"Invalid ATK key_id format: {key_id!r} (expected '<selector>.atk._atp.<domain>')",
             )
-        idx = key_id.index(separator)
-        selector = key_id[:idx]
-        domain = key_id[idx + len(separator):]
-        return selector, domain
+
+        selector, domain = key_id.split(separator, 1)
+        if _SELECTOR_PATTERN.fullmatch(selector) is None:
+            raise ATKError(
+                ATPErrorCode.ATK_KEY_NOT_FOUND,
+                f"Invalid ATK key selector: {selector!r}",
+            )
+
+        # Reuse AgentID's hostname validation so ATK key domains and sender
+        # domains are interpreted identically.  The synthetic local part is
+        # discarded; AgentID also returns the canonical lowercase domain.
+        from atp.core.identity import AgentID
+
+        try:
+            canonical_domain = AgentID.parse(f"atk-key@{domain}").domain
+        except Exception as exc:
+            raise ATKError(
+                ATPErrorCode.ATK_KEY_NOT_FOUND,
+                f"Invalid ATK key domain: {domain!r}",
+            ) from exc
+
+        return selector, canonical_domain

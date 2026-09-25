@@ -733,7 +733,7 @@ function AgentConversation({
         <CardDescription className="text-xs">为智能体设定目标；每次服务交接仍通过 ATP 完成。</CardDescription>
         <CardAction className="flex items-center gap-2">
           <Badge variant={chat.runtime.status === "ready" ? "success" : "secondary"}><Bot />智能体</Badge>
-          <Tooltip><TooltipTrigger asChild><Button variant="ghost" size="icon-sm" aria-label="新建对话" disabled={busy} onClick={onReset}><Trash2 /></Button></TooltipTrigger><TooltipContent>新建对话</TooltipContent></Tooltip>
+          <Tooltip><TooltipTrigger asChild><Button variant="ghost" size="icon-sm" aria-label="删除对话" disabled={busy} onClick={onReset}><Trash2 /></Button></TooltipTrigger><TooltipContent>删除对话</TooltipContent></Tooltip>
         </CardAction>
       </CardHeader>
 

@@ -73,6 +73,10 @@ class TestATKRecordParse:
         with pytest.raises(ATKError):
             ATKRecord.parse("k=ed25519 p=AAAA")
 
+    def test_raises_on_wrong_version(self):
+        with pytest.raises(ATKError, match="Unsupported ATK record version"):
+            ATKRecord.parse("v=garbage k=ed25519 p=AAAA")
+
     def test_raises_on_missing_algorithm(self):
         with pytest.raises(ATKError):
             ATKRecord.parse("v=atp1 p=AAAA")
@@ -94,6 +98,10 @@ class TestATKRecordIsValid:
     def test_valid_no_flags_no_expiry(self):
         record = ATKRecord(version="atp1", algorithm="ed25519", public_key_b64="AAAA")
         assert record.is_valid() is True
+
+    def test_wrong_version_is_invalid(self):
+        record = ATKRecord(version="future", algorithm="ed25519", public_key_b64="AAAA")
+        assert record.is_valid() is False
 
     def test_revoked_flag_r(self):
         record = ATKRecord(
@@ -183,6 +191,29 @@ class TestParseKeyId:
         with pytest.raises(ATKError):
             ATKVerifier.parse_key_id("default.example.com")
 
+    @pytest.mark.parametrize(
+        "key_id",
+        [
+            ".atk._atp.example.com",
+            "Upper.atk._atp.example.com",
+            "../escape.atk._atp.example.com",
+            "default.atk._atp.",
+            "default.atk._atp.-example.com",
+            "default.atk._atp.example..com",
+            "a.atk._atp.b.atk._atp.example.com",
+        ],
+    )
+    def test_invalid_selector_or_domain_raises(self, key_id):
+        with pytest.raises(ATKError):
+            ATKVerifier.parse_key_id(key_id)
+
+    def test_domain_is_canonicalized_to_lowercase(self):
+        selector, domain = ATKVerifier.parse_key_id(
+            "default.atk._atp.Sub.Example.COM"
+        )
+        assert selector == "default"
+        assert domain == "sub.example.com"
+
 
 # ── ATKVerifier.verify ──────────────────────────────────────────────────────
 
@@ -253,6 +284,25 @@ class TestATKVerifierVerify:
         result = await ATKVerifier(resolver).verify(msg)
 
         assert result.passed is True
+
+    async def test_wrong_atk_record_version_is_rejected(self):
+        private_key = SM2PrivateKey.generate()
+        pub_b64 = base64.b64encode(private_key.public_key().raw_bytes()).decode("ascii")
+        resolver = MockResolver(
+            txt_records={
+                "default.atk._atp.sender.com": f"v=garbage k=sm2 p={pub_b64}",
+            }
+        )
+        msg = ATPMessage.create(
+            "alice@sender.com", "bob@receiver.com", {"text": "hello"}
+        )
+        Signer(private_key, "default", "sender.com").sign(msg)
+
+        result = await ATKVerifier(resolver).verify(msg)
+
+        assert result.passed is False
+        assert result.error_code == "550 5.7.29"
+        assert "parse ATK record" in result.error_message
 
     async def test_dns_and_envelope_algorithm_mismatch_is_rejected(self):
         private_key = SM2PrivateKey.generate()

@@ -14,7 +14,12 @@ class TLSConfig:
         ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
         ctx.minimum_version = ssl.TLSVersion.TLSv1_3
         ctx.load_cert_chain(cert_path, key_path)
-        ctx.set_alpn_protocols(["atp/1", "h2", "http/1.1"])
+        # ATPServer is currently served by Uvicorn's HTTP/1.1 implementation.
+        # Advertising h2 (or a custom atp/1 protocol) makes capable clients
+        # negotiate a protocol the server cannot actually speak.  In
+        # particular, curl then waits for an HTTP/2 SETTINGS frame and aborts
+        # an otherwise valid TLS 1.3 connection.
+        ctx.set_alpn_protocols(["http/1.1"])
         return ctx
 
     @staticmethod
@@ -27,7 +32,7 @@ class TLSConfig:
         else:
             ctx.check_hostname = False
             ctx.verify_mode = ssl.CERT_NONE
-        ctx.set_alpn_protocols(["atp/1", "h2", "http/1.1"])
+        ctx.set_alpn_protocols(["http/1.1"])
         return ctx
 
     @staticmethod

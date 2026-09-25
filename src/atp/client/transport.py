@@ -48,10 +48,44 @@ class TransportResult:
 
 
 class HTTPTransport:
-    def __init__(self, no_verify: bool = False, timeout: float = 30.0):
+    def __init__(
+        self,
+        no_verify: bool = False,
+        timeout: float = 30.0,
+        transport_mode: str = "tls",
+        tlcp_gateway_url: str = "",
+    ):
+        if transport_mode not in {"tls", "tlcp"}:
+            raise ValueError("transport_mode must be 'tls' or 'tlcp'")
+        if transport_mode == "tlcp" and not tlcp_gateway_url:
+            raise ValueError("tlcp_gateway_url is required in TLCP mode")
         self._verify = not no_verify
         self._timeout = timeout
+        self._transport_mode = transport_mode
+        self._tlcp_gateway_url = tlcp_gateway_url.rstrip("/")
         self._client: httpx.AsyncClient | None = None
+
+    def _route_url(self, base_url: str, path: str) -> tuple[str, dict[str, str]]:
+        """Return the actual URL and Docker-internal relay headers.
+
+        Normal TLS mode connects directly to the discovered ATP server. TLCP
+        mode sends the request to a local gateway, which validates the peer
+        against its allow-list and establishes the SM2/SM3/SM4 connection.
+        """
+        if self._transport_mode == "tls":
+            return f"{base_url}{path}", {}
+
+        parsed = urlparse(base_url)
+        if parsed.scheme != "https" or not parsed.hostname:
+            raise ValueError("TLCP relay targets must be HTTPS ATP server URLs")
+        target_port = parsed.port or DEFAULT_PORT
+        return (
+            f"{self._tlcp_gateway_url}{path}",
+            {
+                "X-ATP-TLCP-Target": f"{parsed.hostname}:{target_port}",
+                "X-ATP-TLCP-Server-Name": parsed.hostname,
+            },
+        )
 
     def _get_client(self, verify: bool | None = None) -> httpx.AsyncClient:
         effective_verify = verify if verify is not None else self._verify
@@ -69,8 +103,11 @@ class HTTPTransport:
 
         auth: optional (agent_id, password) tuple for Basic Auth.
         """
-        url = f"{base_url}/.well-known/atp/v1/message"
+        url, relay_headers = self._route_url(
+            base_url, "/.well-known/atp/v1/message"
+        )
         headers = {"Content-Type": "application/atp+json"}
+        headers.update(relay_headers)
         if auth:
             credentials = base64.b64encode(f"{auth[0]}:{auth[1]}".encode()).decode()
             headers["Authorization"] = f"Basic {credentials}"
@@ -98,10 +135,16 @@ class HTTPTransport:
         self, base_url: str, agent_id: str, password: str
     ) -> TransportResult:
         """POST to {base_url}/.well-known/atp/v1/register"""
-        url = f"{base_url}/.well-known/atp/v1/register"
+        url, relay_headers = self._route_url(
+            base_url, "/.well-known/atp/v1/register"
+        )
         try:
             client = self._get_client()
-            resp = await client.post(url, json={"agent_id": agent_id, "password": password})
+            resp = await client.post(
+                url,
+                json={"agent_id": agent_id, "password": password},
+                headers=relay_headers,
+            )
             body = resp.json() if resp.headers.get("content-type", "").startswith("application/json") else {}
             return TransportResult(
                 success=(resp.status_code == 201),
@@ -113,9 +156,11 @@ class HTTPTransport:
 
     async def get_capabilities(self, base_url: str) -> dict:
         """GET capabilities from the ATP server."""
-        url = f"{base_url}/.well-known/atp/v1/capabilities"
+        url, relay_headers = self._route_url(
+            base_url, "/.well-known/atp/v1/capabilities"
+        )
         client = self._get_client()
-        resp = await client.get(url)
+        resp = await client.get(url, headers=relay_headers)
         return resp.json()
 
     async def close(self) -> None:

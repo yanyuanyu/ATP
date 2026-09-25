@@ -14,6 +14,8 @@ from atp.core.message import ATPMessage
 from atp.core.identity import AgentID
 from atp.core.errors import MessageFormatError
 from atp.storage.messages import MessageStatus
+from atp.security.sm2 import SM2PrivateKey
+from atp.security.sm4 import SM4PayloadError, decrypt_payload, message_aad
 
 logger = logging.getLogger("atp.server")
 
@@ -291,10 +293,33 @@ async def handle_recv(request: Request) -> JSONResponse:
     messages = []
     last_id = None
     for sm in stored_messages:
+        # Advance the cursor even when a malformed or unauthenticated
+        # encrypted message is skipped; otherwise one poison message would be
+        # returned forever on every receive call.
+        last_id = sm.id
         try:
             msg = ATPMessage.from_json(sm.message_json)
+            if msg.payload.get("_atp_encrypted"):
+                private_key = getattr(server, "encryption_private_key", None)
+                if not isinstance(private_key, SM2PrivateKey):
+                    logger.error("Encrypted message cannot be decrypted: server has no SM2 key")
+                    continue
+                try:
+                    msg.payload = decrypt_payload(
+                        msg.payload,
+                        recipient_private_key=private_key,
+                        aad=message_aad(
+                            from_id=msg.from_id,
+                            to_id=msg.to_id,
+                            timestamp=msg.timestamp,
+                            nonce=msg.nonce,
+                            message_type=msg.type,
+                        ),
+                    )
+                except SM4PayloadError as exc:
+                    logger.error("Encrypted message %s rejected: %s", msg.nonce, exc)
+                    continue
             messages.append(msg.to_dict())
-            last_id = sm.id  # Track highest DB id for cursor pagination
         except Exception:
             pass
 

@@ -3,6 +3,7 @@
 import base64
 import json
 import os
+import re
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -26,6 +27,7 @@ from atp.security.sm2 import SM2PrivateKey, SM2PublicKey
 
 
 SUPPORTED_KEY_ALGORITHMS = ("sm2", "ed25519")
+SELECTOR_PATTERN = re.compile(r"[a-z0-9][a-z0-9_-]{0,62}\Z")
 PrivateKey = Union[SM2PrivateKey, Ed25519PrivateKey]
 PublicKey = Union[SM2PublicKey, Ed25519PublicKey]
 
@@ -63,10 +65,20 @@ class KeyStorage:
         return value
 
     def _paths(self, selector: str, algorithm: str) -> tuple[Path, Path]:
+        self._validate_selector(selector)
         return (
             self._keys_dir / f"{selector}.{algorithm}.key",
             self._keys_dir / f"{selector}.{algorithm}.pub",
         )
+
+    @staticmethod
+    def _validate_selector(selector: str) -> str:
+        if not isinstance(selector, str) or SELECTOR_PATTERN.fullmatch(selector) is None:
+            raise StorageError(
+                ATPErrorCode.INVALID_MESSAGE_FORMAT,
+                "Invalid key selector; use 1-63 lowercase letters, digits, '_' or '-'",
+            )
+        return selector
 
     def _legacy_ed25519_paths(self, selector: str) -> tuple[Path, Path]:
         return self._keys_dir / f"{selector}.key", self._keys_dir / f"{selector}.pub"

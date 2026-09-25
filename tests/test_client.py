@@ -39,6 +39,38 @@ def test_http_transport_init():
     assert transport._client is None
 
 
+def test_tlcp_transport_routes_via_local_gateway():
+    transport = HTTPTransport(
+        transport_mode="tlcp",
+        tlcp_gateway_url="http://tlcp-family.family.test:9080/",
+    )
+    url, headers = transport._route_url(
+        "https://server-hotel.hotel.test:7443",
+        "/.well-known/atp/v1/message",
+    )
+    assert url == (
+        "http://tlcp-family.family.test:9080/.well-known/atp/v1/message"
+    )
+    assert headers == {
+        "X-ATP-TLCP-Target": "server-hotel.hotel.test:7443",
+        "X-ATP-TLCP-Server-Name": "server-hotel.hotel.test",
+    }
+
+
+def test_tlcp_transport_requires_gateway():
+    with pytest.raises(ValueError, match="tlcp_gateway_url"):
+        HTTPTransport(transport_mode="tlcp")
+
+
+def test_tlcp_transport_rejects_plaintext_remote_target():
+    transport = HTTPTransport(
+        transport_mode="tlcp",
+        tlcp_gateway_url="http://tlcp-family.family.test:9080",
+    )
+    with pytest.raises(ValueError, match="HTTPS ATP server URLs"):
+        transport._route_url("http://server-hotel:7443", "/message")
+
+
 def test_http_transport_get_client():
     transport = HTTPTransport(no_verify=True)
     client = transport._get_client()

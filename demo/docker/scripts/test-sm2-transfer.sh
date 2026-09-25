@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
+# Keep Docker/Compose paths and arguments intact when run from Git Bash.
+export MSYS2_ARG_CONV_EXCL='*'
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 docker compose exec -T server-family python /agents/check_sm2_transfer.py
 

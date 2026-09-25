@@ -14,6 +14,71 @@ services:
       - ./bind/named.conf:/etc/bind/named.conf:ro
       - ./bind/zones:/etc/bind/zones:ro
 
+  # ── SM2/SM3/SM4 TLCP gateways ─────────────────────────────────────────
+  # Port 9080 accepts only Docker-internal relay requests from the local ATP
+  # server. Port 8443 accepts TLCP from the other domain gateways. No gateway
+  # port is published to the host.
+
+  tlcp-family:
+    image: atp-tlcp-gateway:latest
+    container_name: hack-tlcp-family
+    hostname: tlcp-family.family.test
+    networks:
+      atpnet:
+        ipv4_address: 172.28.1.2
+    environment:
+      - ATP_BACKEND_URL=https://server-family:7443
+      - ATP_BACKEND_CA=/tlcp/ca.crt
+      - ATP_BACKEND_SERVER_NAME=server-family.family.test
+      - ATP_TLCP_PEERS=server-family.family.test:7443=tlcp-family:8443,server-hotel.hotel.test:7443=tlcp-hotel:8443,server-payment.payment.test:7443=tlcp-payment:8443
+      - ATP_TLCP_CA=/tlcp/tlcp-ca.crt
+      - ATP_TLCP_SIGN_CERT=/tlcp/family.test-tlcp-sign.crt
+      - ATP_TLCP_SIGN_KEY=/tlcp/family.test-tlcp-sign.key
+      - ATP_TLCP_ENC_CERT=/tlcp/family.test-tlcp-enc.crt
+      - ATP_TLCP_ENC_KEY=/tlcp/family.test-tlcp-enc.key
+    volumes:
+      - ./certs:/tlcp:ro
+
+  tlcp-hotel:
+    image: atp-tlcp-gateway:latest
+    container_name: hack-tlcp-hotel
+    hostname: tlcp-hotel.hotel.test
+    networks:
+      atpnet:
+        ipv4_address: 172.28.2.2
+    environment:
+      - ATP_BACKEND_URL=https://server-hotel:7443
+      - ATP_BACKEND_CA=/tlcp/ca.crt
+      - ATP_BACKEND_SERVER_NAME=server-hotel.hotel.test
+      - ATP_TLCP_PEERS=server-family.family.test:7443=tlcp-family:8443,server-hotel.hotel.test:7443=tlcp-hotel:8443,server-payment.payment.test:7443=tlcp-payment:8443
+      - ATP_TLCP_CA=/tlcp/tlcp-ca.crt
+      - ATP_TLCP_SIGN_CERT=/tlcp/hotel.test-tlcp-sign.crt
+      - ATP_TLCP_SIGN_KEY=/tlcp/hotel.test-tlcp-sign.key
+      - ATP_TLCP_ENC_CERT=/tlcp/hotel.test-tlcp-enc.crt
+      - ATP_TLCP_ENC_KEY=/tlcp/hotel.test-tlcp-enc.key
+    volumes:
+      - ./certs:/tlcp:ro
+
+  tlcp-payment:
+    image: atp-tlcp-gateway:latest
+    container_name: hack-tlcp-payment
+    hostname: tlcp-payment.payment.test
+    networks:
+      atpnet:
+        ipv4_address: 172.28.3.2
+    environment:
+      - ATP_BACKEND_URL=https://server-payment:7443
+      - ATP_BACKEND_CA=/tlcp/ca.crt
+      - ATP_BACKEND_SERVER_NAME=server-payment.payment.test
+      - ATP_TLCP_PEERS=server-family.family.test:7443=tlcp-family:8443,server-hotel.hotel.test:7443=tlcp-hotel:8443,server-payment.payment.test:7443=tlcp-payment:8443
+      - ATP_TLCP_CA=/tlcp/tlcp-ca.crt
+      - ATP_TLCP_SIGN_CERT=/tlcp/payment.test-tlcp-sign.crt
+      - ATP_TLCP_SIGN_KEY=/tlcp/payment.test-tlcp-sign.key
+      - ATP_TLCP_ENC_CERT=/tlcp/payment.test-tlcp-enc.crt
+      - ATP_TLCP_ENC_KEY=/tlcp/payment.test-tlcp-enc.key
+    volumes:
+      - ./certs:/tlcp:ro
+
   # ── family.test ──────────────────────────────────────────────────────────
 
   server-family:
@@ -26,6 +91,8 @@ services:
     dns: 172.28.0.10
     environment:
       - SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt
+      - ATP_TRANSPORT_MODE=${ATP_TRANSPORT_MODE:-tlcp}
+      - ATP_TLCP_GATEWAY_URL=http://tlcp-family:9080
     volumes:
       - ./certs/ca.crt:/usr/local/share/ca-certificates/atp-ca.crt:ro
       - ./certs/family.test.crt:/atp/certs/server.crt:ro
@@ -40,6 +107,7 @@ services:
         atp server start --key-algorithm sm2 --domain family.test --port 7443 --host 0.0.0.0 --cert /atp/certs/server.crt --key /atp/certs/server.key
     depends_on:
       - dns
+      - tlcp-family
 
   # ── hotel.test ───────────────────────────────────────────────────────────
 
@@ -53,6 +121,8 @@ services:
     dns: 172.28.0.10
     environment:
       - SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt
+      - ATP_TRANSPORT_MODE=${ATP_TRANSPORT_MODE:-tlcp}
+      - ATP_TLCP_GATEWAY_URL=http://tlcp-hotel:9080
     volumes:
       - ./certs/ca.crt:/usr/local/share/ca-certificates/atp-ca.crt:ro
       - ./certs/hotel.test.crt:/atp/certs/server.crt:ro
@@ -67,6 +137,7 @@ services:
         atp server start --key-algorithm sm2 --domain hotel.test --port 7443 --host 0.0.0.0 --cert /atp/certs/server.crt --key /atp/certs/server.key
     depends_on:
       - dns
+      - tlcp-hotel
 
   # ── payment.test ─────────────────────────────────────────────────────────
 
@@ -80,6 +151,8 @@ services:
     dns: 172.28.0.10
     environment:
       - SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt
+      - ATP_TRANSPORT_MODE=${ATP_TRANSPORT_MODE:-tlcp}
+      - ATP_TLCP_GATEWAY_URL=http://tlcp-payment:9080
     volumes:
       - ./certs/ca.crt:/usr/local/share/ca-certificates/atp-ca.crt:ro
       - ./certs/payment.test.crt:/atp/certs/server.crt:ro
@@ -94,6 +167,7 @@ services:
         atp server start --key-algorithm sm2 --domain payment.test --port 7443 --host 0.0.0.0 --cert /atp/certs/server.crt --key /atp/certs/server.key
     depends_on:
       - dns
+      - tlcp-payment
 
   # ── Long-running agent: search@hotel.test ───────────────────────────────
 
@@ -392,7 +466,7 @@ services:
         ipv4_address: 172.28.4.1
     dns: 172.28.0.10
     ports:
-      - "8080:8080"
+      - "127.0.0.1:8080:8080"
     volumes:
       # docker.sock lets the controller stop/start containers + exec for DB ops.
       # This violates the plan's "Demo Controller does NOT access Docker socket"
