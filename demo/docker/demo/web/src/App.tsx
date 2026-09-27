@@ -680,12 +680,12 @@ function AgentAuditPanel({ chat }: { chat: ChatState }) {
                 <header className="agent-audit-header">
                   <span className="agent-audit-avatar"><Bot /></span>
                   <span className="min-w-0"><strong>{agent.name}智能体</strong><small>{agent.id} · {agent.detail}</small></span>
-                  <Badge variant={latest?.kind === "response" ? "success" : events.length ? "secondary" : "outline"}>{events.length || "空闲"}</Badge>
+                  <Badge variant={latest?.kind === "response" ? "success" : events.length ? "secondary" : "outline"}>{events.length || "尚无任务记录"}</Badge>
                 </header>
                 <div className="agent-decision-summary"><Sparkles /><span><strong>可观测决策摘要</strong><small>{decisionSummary(agent.name, events)}</small></span></div>
                 <ScrollArea className="agent-audit-scroll">
                   <div className="agent-audit-events">
-                    {!events.length && <div className="agent-audit-empty">暂无应用层记录。</div>}
+                    {!events.length && <div className="agent-audit-empty">尚未观察到该智能体的任务记录；不代表模型接口异常。</div>}
                     {events.map((event) => {
                       const meta = auditKind(event.kind)
                       return (

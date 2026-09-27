@@ -682,6 +682,8 @@ class PiTravelRuntime:
             request_id = str(event.get("request_id") or "")
             if request_id and request_id not in self.pending:
                 continue
+            if event_type == "runtime_recovery" and request_id:
+                _append_agent_audit(str(_chat_state["run_id"]), "travel@family.test", "travel", "recovery", "模型空响应或步骤未完成，正在有限恢复", {"attempt": event.get("attempt"), "reason": event.get("reason")}, request_id=request_id)
             if event_type == "task_progress":
                 _chat_state["evidence"] = event.get("evidence")
             if event_type == "agent_event" and request_id:

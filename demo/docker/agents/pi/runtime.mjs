@@ -490,13 +490,32 @@ async function promptAgent(requestId, prompt) {
   const timer = setTimeout(() => { fatalError = new TaskError("TASK_TIMEOUT", "deadline"); agent.abort(); bridge.close() }, TASK_MS)
   emit({ type: "prompt_start", request_id: requestId })
   try {
-    await agent.prompt(prompt)
-    checkDeadline()
-    if (modelError || agent.state.errorMessage) throw modelError || new Error(agent.state.errorMessage)
-    if (!lastAssistantText) throw new TaskError("MODEL_OUTPUT", "empty")
     const fullBooking = /完成.{0,30}(预订|付款)|按.{0,30}最低.{0,30}(预订|付款)|book.{0,40}pay/i.test(prompt) && !/(不要|不需要|暂不|do not|don.t).{0,12}(付款|预订|book|pay)/i.test(prompt)
+    let nextPrompt = prompt
+    for (let attempt = 0; attempt < 3; attempt++) {
+      lastAssistantText = ""
+      await agent.prompt(nextPrompt)
+      checkDeadline()
+      // Authentication, quota and transport failures must not be treated as
+      // empty completions or replayed as business requests.
+      if (modelError || agent.state.errorMessage) throw modelError || new Error(agent.state.errorMessage)
+      const delivered = ROLE !== "travel" && handledInbound.has(currentInbound?.nonce)
+      const evidenceComplete = ROLE === "travel" && travelState.sent.length && !travelState.pending && (!fullBooking || travelState.payment)
+      if (delivered || evidenceComplete) break
+      const missingReply = ROLE !== "travel" && !delivered
+      const incompleteTrip = ROLE === "travel" && (travelState.pending || (fullBooking && !travelState.payment))
+      if (lastAssistantText && !missingReply && !incompleteTrip) break
+      if (attempt === 2) throw new TaskError(lastAssistantText ? "INCOMPLETE" : "MODEL_OUTPUT", "有限恢复后仍无有效结果")
+      emit({ type: "runtime_recovery", request_id: requestId, attempt: attempt + 1, reason: lastAssistantText ? "incomplete" : "empty", evidence: ROLE === "travel" ? travelState.summary() : null })
+      await delay(250)
+      checkDeadline()
+      nextPrompt = ROLE === "travel"
+        ? `Continue the original user request within its existing authorization. Your last response was empty or the requested workflow is incomplete. Do not repeat any sent request, especially payment. If a request is pending, receive its correlated reply. Use this verified state: ${JSON.stringify(travelState.summary())}. If no business action is needed, provide a nonempty answer.`
+        : `Continue processing the SAME inbound nonce ${currentInbound.nonce}. No response has been delivered yet. Use the existing business tool result when available and send the required response. Do not repeat an already sent reply. Existing result: ${JSON.stringify(serviceResult)}.`
+    }
+    if (!lastAssistantText && ROLE === "travel" && !travelState.sent.length) throw new TaskError("MODEL_OUTPUT", "empty")
     if (ROLE === "travel" && !travelState.sent.length && /(已|成功).{0,12}(付款|预订|支付)|payment.{0,12}(success|approved)|booking.{0,12}confirmed/i.test(lastAssistantText)) throw new TaskError("INCOMPLETE", "没有业务证据")
-    const text = ROLE === "travel" ? travelState.finalText(lastAssistantText) : lastAssistantText
+    const text = ROLE === "travel" ? travelState.finalText(lastAssistantText) : (lastAssistantText || "已通过 ATP 发送经业务工具确认的回复。")
     const evidence = ROLE === "travel" ? travelState.summary() : null
     if (ROLE === "travel" && fullBooking && !travelState.payment) throw new TaskError("INCOMPLETE", "缺少付款回执")
     emit({ type: "prompt_result", request_id: requestId, status: "completed", text, evidence })
@@ -563,9 +582,6 @@ async function runService() {
       const prompt = `Process this ATP delivery using only your allowed tools.\n${JSON.stringify(message)}`
       try {
         await promptAgent(requestId, prompt)
-        if (!handledInbound.has(message.nonce)) {
-          await promptAgent(`${requestId}-retry`, `You have not yet sent the required ATP response for nonce ${message.nonce}. Complete it now with the appropriate reply or publish tool.`)
-        }
       } catch (error) {
         process.stderr.write(`[${ROLE}] failed to process ${requestId}: ${error instanceof Error ? error.stack : error}\n`)
       } finally {

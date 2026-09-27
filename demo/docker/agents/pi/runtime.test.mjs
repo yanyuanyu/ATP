@@ -72,3 +72,21 @@ test('total deadline aborts the pending model call',async t=>{
   const {result,calls}=await run(t,{hang:true,env:{ATP_TASK_TIMEOUT_MS:'300'}})
   assert.equal(result.status,'failed');assert.equal(result.error.code,'TASK_TIMEOUT');assert.equal(calls,1)
 })
+
+
+test('one empty completion recovers without duplicate sends', async t => {
+  const {result,events,calls}=await run(t,{sequence:[{content:''},...steps]})
+  assert.equal(result.status,'completed');assert.equal(calls,8)
+  assert.equal(events.filter(x=>x.type==='runtime_recovery').length,1)
+  assert.equal(result.evidence.sent.length,3)
+})
+test('empty final text uses verified payment evidence, not a repeated payment', async t => {
+  const {result,calls}=await run(t,{sequence:[...steps.slice(0,6),{content:''}]})
+  assert.equal(result.status,'completed');assert.equal(calls,7)
+  assert.equal(result.evidence.sent.filter(x=>x.subject==='book+pay').length,1)
+  assert.match(result.text,/340/)
+})
+test('persistent empty completions stop after two recovery attempts', async t => {
+  const {result,calls}=await run(t,{sequence:[{content:''}]})
+  assert.equal(result.status,'failed');assert.equal(result.error.code,'MODEL_OUTPUT');assert.equal(calls,3)
+})
