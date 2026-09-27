@@ -25,8 +25,11 @@ async def main():
         return signer.sign(ATPMessage.create('audit@family.test', 'audit@hotel.test',
                                             {'subject': 'sm2-regression', 'body': 'original'})).to_dict()
 
-    url = 'https://server-hotel.hotel.test:7443/.well-known/atp/v1/message'
-    async with httpx.AsyncClient(timeout=20) as client:
+    url = 'http://tlcp-family:9080/.well-known/atp/v1/message'
+    async with httpx.AsyncClient(timeout=20, headers={
+        'X-ATP-TLCP-Target': 'server-hotel.hotel.test:7443',
+        'X-ATP-TLCP-Server-Name': 'server-hotel.hotel.test',
+    }) as client:
         original = signed()
         response = await client.post(url, json=original)
         assert response.status_code == 202, response.text

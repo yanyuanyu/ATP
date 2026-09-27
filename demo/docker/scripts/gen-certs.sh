@@ -60,4 +60,10 @@ docker run --rm --user 0:0 \
   -v "$CERT_HOST_DIR:/certs" \
   atp-tlcp-gateway:latest certgen /certs
 
+# The gateway runs as uid 65534; keep private keys mode 0600, owned by that
+# uid rather than broadening readability after root-owned certificate creation.
+docker run --rm --user 0:0 -v "$CERT_HOST_DIR:/certs" \
+  --entrypoint sh atp-hackthon:latest \
+  -c 'chown 65534:65534 /certs/*-tlcp-*.key'
+
 echo "Certificates generated in $CERT_DIR"

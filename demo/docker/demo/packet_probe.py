@@ -23,6 +23,9 @@ SERVER_IPS = {
     "172.28.3.1": "server-payment",
 }
 TLCP_GATEWAY_IPS = {
+    "172.28.0.11": "tlcp-family",
+    "172.28.0.12": "tlcp-hotel",
+    "172.28.0.13": "tlcp-payment",
     "172.28.1.2": "tlcp-family",
     "172.28.2.2": "tlcp-hotel",
     "172.28.3.2": "tlcp-payment",
@@ -30,6 +33,9 @@ TLCP_GATEWAY_IPS = {
 ATP_NODE_IPS = {**SERVER_IPS, **TLCP_GATEWAY_IPS}
 NODE_IPS = {**ATP_NODE_IPS, "172.28.0.10": "dns"}
 NODE_IPS.update({
+    "172.28.1.254": "travel@family.test",
+    "172.28.2.254": "travel@family.test",
+    "172.28.3.254": "travel@family.test",
     "172.28.2.101": "search@hotel.test",
     "172.28.2.103": "rates@hotel.test",
     "172.28.3.101": "bill@payment.test",
@@ -146,7 +152,7 @@ def main() -> int:
     sensor = sys.argv[1] if len(sys.argv) > 1 else "server-unknown"
     duration = float(sys.argv[2]) if len(sys.argv) > 2 else 75.0
     sock = socket.socket(socket.AF_PACKET, socket.SOCK_RAW, socket.ntohs(0x0003))
-    sock.bind(("eth0", 0))
+    # Listen on all interfaces: TLCP gateways now have domain and backbone NICs.
     sock.settimeout(0.5)
     deadline = time.monotonic() + duration
     recently_emitted: dict[str, float] = {}
@@ -158,7 +164,7 @@ def main() -> int:
         recently_emitted[key] = now
         return True
 
-    emit(sensor, "probe_ready", interface="eth0", capture="AF_PACKET")
+    emit(sensor, "probe_ready", interface="any", capture="AF_PACKET")
     try:
         while time.monotonic() < deadline:
             try:
@@ -246,7 +252,7 @@ def main() -> int:
                 )
     finally:
         sock.close()
-    emit(sensor, "probe_complete", interface="eth0")
+    emit(sensor, "probe_complete", interface="any")
     return 0
 
 

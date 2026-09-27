@@ -21,7 +21,7 @@ from typing import Any
 from gmssl import sm2, sm4
 
 from atp.core.canonicalize import canonicalize
-from atp.security.sm2 import SM2PrivateKey, SM2PublicKey
+from atp.security.sm2 import SM2PrivateKey, SM2PublicKey, sm3_digest
 
 
 SM4_ENVELOPE_VERSION = "atp1"
@@ -49,9 +49,7 @@ def message_aad(*, from_id: str, to_id: str, timestamp: int, nonce: str, message
 
 
 def _sm3_digest(data: bytes) -> bytes:
-    from gmssl import sm3
-
-    return bytes.fromhex(sm3.sm3_hash(list(data)))
+    return sm3_digest(data)
 
 
 def _sm3_hmac(key: bytes, data: bytes) -> bytes:
@@ -110,6 +108,9 @@ def encrypt_payload(
     tag = _sm3_hmac(mac_key, aad + iv + ciphertext)
 
     key_cipher = sm2.CryptSM2(private_key="", public_key=recipient_public_key.public_key_hex)
+    # gmssl incorrectly lstrip("04")s a bare point, corrupting valid coordinates.
+    # Match the existing signing/verification workaround in security.sm2.
+    key_cipher.public_key = recipient_public_key.public_key_hex
     # gmssl returns ``None`` for the SM2 KDF's negligible all-zero output;
     # retry with a fresh ephemeral point instead of serializing ``None``.
     wrapped_key = None
@@ -159,11 +160,12 @@ def decrypt_payload(
         private_key=recipient_private_key.private_key_hex,
         public_key=recipient_private_key.public_key_hex,
     )
+    key_cipher.public_key = recipient_private_key.public_key_hex
     try:
         session_key = key_cipher.decrypt(wrapped_key)
     except Exception as exc:
         raise SM4PayloadError("SM2 session-key unwrap failed") from exc
-    if len(session_key) != SM4_KEY_SIZE:
+    if session_key is None or len(session_key) != SM4_KEY_SIZE:
         raise SM4PayloadError("invalid SM4 session-key length")
 
     enc_key, mac_key = _derive_subkeys(session_key)

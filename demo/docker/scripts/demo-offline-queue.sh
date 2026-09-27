@@ -3,7 +3,7 @@
 #
 # Demonstrates the cross-domain retry queue: when the recipient's server
 # is unreachable, the sender's server holds the message in QUEUED state
-# and retries with exponential backoff (60s, 300s, ...).
+# and retries with bounded 2–10 second backoff.
 #
 # Flow:
 #   1. Stop server-payment (recipient's server is offline).
@@ -11,8 +11,7 @@
 #      family's delivery manager tries to transfer → fails → schedules retry.
 #   3. Show family's queue: 1 message QUEUED, retry_count=1, next_retry_at set.
 #   4. Start server-payment + agent-bill.
-#   5. Restart server-family — forces delivery loop to retry immediately
-#      (otherwise we'd wait up to 60s for the next scheduled retry).
+#   5. Leave the retry timer untouched and observe natural recovery.
 #   6. Wait for delivery + bill's ack reply.
 #   7. Show family's queue: message DELIVERED. Confirm bill acked.
 #
@@ -64,18 +63,7 @@ docker compose start agent-bill 2>&1 | tail -2 || true
 sleep 2
 
 echo
-echo '=== Step 5: Force immediate retry (simulate retry-timer expiry) ==='
-# The delivery manager's next scheduled retry is 60s out (exponential backoff:
-# 60s, 300s, 1800s, ...). For a hackathon demo we don't want to wait 60s, so
-# we reset next_retry_at to 0 on any failed message — the delivery loop will
-# pick it up on its next 5s tick and re-attempt transfer now that payment is up.
-docker compose exec -T server-family python3 -c "
-import sqlite3
-conn = sqlite3.connect('$DB_PATH')
-cur = conn.execute(\"UPDATE messages SET next_retry_at=0 WHERE status='failed' AND next_retry_at IS NOT NULL\")
-conn.commit()
-print(f'  reset next_retry_at on {cur.rowcount} failed message(s)')
-" 2>&1 || echo '  (DB update failed)'
+echo '=== Step 5: Observe natural retry; no timer or message changes ==='
 
 echo
 echo '=== Step 6: Wait 15s for delivery + bill ack ==='

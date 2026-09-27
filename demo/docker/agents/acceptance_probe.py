@@ -21,6 +21,18 @@ from atp.storage.keys import KeyStorage
 PREFIX = '/.well-known/atp/v1'
 PASSWORD = 'acceptance-local-test'
 
+class AcceptanceClient(httpx.AsyncClient):
+    """Reach remote test mailboxes through the same TLCP relay as delivery."""
+    async def request(self, method, url, **kwargs):
+        parsed = httpx.URL(url)
+        if parsed.host in {'server-hotel.hotel.test', 'server-payment.payment.test'}:
+            headers = dict(kwargs.pop('headers', None) or {})
+            headers['X-ATP-TLCP-Target'] = parsed.host + ':7443'
+            headers['X-ATP-TLCP-Server-Name'] = parsed.host
+            kwargs['headers'] = headers
+            url = str(parsed.copy_with(scheme='http', host='tlcp-family', port=9080))
+        return await super().request(method, url, **kwargs)
+
 def keys():
     return KeyStorage(Path('/root/.atp/keys')).load_key_pair('default', 'sm2')
 
@@ -44,27 +56,29 @@ def benchmark():
         combined=[a+b for a,b in zip(enc,dec)]
         result['samples'].append({'plaintext_bytes':size,'n':count,'warmups':2,'encrypt_mean_ms':statistics.mean(enc),'decrypt_mean_ms':statistics.mean(dec),'roundtrip_mean_ms':statistics.mean(combined),'roundtrip_max_ms':max(combined),'roundtrip_p95_ms':sorted(combined)[int(.95*len(combined))-1],'limit_ms':100 if size==1024 else 2000,'all_equal':True})
     print(json.dumps(result))
+    assert all(row['all_equal'] and row['roundtrip_mean_ms'] <= row['limit_ms'] for row in result['samples']), 'Crypto performance limit exceeded'
 
 async def network():
+    agent='acceptance-'+str(time.time_ns())
     resolver=DNSResolver(); private,_=keys(); signer=Signer(private,'default','family.test')
     records={}; discovers={}; result={'discovery':discovers,'legal':[],'attacks':[]}
-    async with httpx.AsyncClient(timeout=30) as client:
+    async with AcceptanceClient(timeout=30) as client:
         for domain in ['family','hotel','payment']:
             d=domain+'.test'; info=await resolver.query_svcb(d)
             discovers[d]={'host':info.host,'port':info.port,'ips':info.ip_addresses}
             records[domain]=ATKRecord.parse(await resolver.query_txt('default.atk._atp.'+d)).get_public_key()
-            response=await client.post(f'https://server-{domain}.{d}:7443{PREFIX}/register',json={'agent_id':'acceptance','password':PASSWORD})
+            response=await client.post(f'https://server-{domain}.{d}:7443{PREFIX}/register',json={'agent_id':agent,'password':PASSWORD})
             assert response.status_code in (201,409),response.text
         for domain in ['hotel','payment']:
             url=f'https://server-{domain}.{domain}.test:7443{PREFIX}'
             for size in [1024,65536]:
                 for i in range(3):
                     payload={'body':'x'*(size-11)}
-                    m=ATPMessage.create('acceptance@family.test',f'acceptance@{domain}.test',payload)
+                    m=ATPMessage.create(f'{agent}@family.test',f'{agent}@{domain}.test',payload)
                     m.payload=encrypt_payload(payload,recipient_public_key=records[domain],aad=aad(m));signed=signer.sign(m).to_dict()
                     t=time.perf_counter()
                     response=await client.post('http://tlcp-family:9080'+PREFIX+'/message',json=signed,headers={'X-ATP-TLCP-Target':f'server-{domain}.{domain}.test:7443','X-ATP-TLCP-Server-Name':f'server-{domain}.{domain}.test'})
-                    read=await client.get(url+'/messages',params={'limit':100},auth=(f'acceptance@{domain}.test',PASSWORD))
+                    read=await client.get(url+'/messages',params={'limit':100},auth=(f'{agent}@{domain}.test',PASSWORD))
                     match=next((x for x in read.json().get('messages',[]) if x['nonce']==m.nonce),None)
                     result['legal'].append({'domain':domain,'bytes':size,'status':response.status_code,'transport':response.headers.get('x-atp-transport'),'cipher':response.headers.get('x-atp-tlcp-cipher'),'decrypted_equal':bool(match and match['payload']==payload),'elapsed_ms':(time.perf_counter()-t)*1000,'nonce':m.nonce})
                     response=await client.post(url+'/message',json=signed)
@@ -81,14 +95,16 @@ async def network():
         local=f'https://server-family.family.test:7443{PREFIX}/message'
         for i in range(5):
             m=ATPMessage.create('victim@family.test','acceptance@hotel.test',{'body':'test'}).to_dict()
-            response=await client.post(local,json=m,auth=('acceptance@family.test',PASSWORD))
+            response=await client.post(local,json=m,auth=(f'{agent}@family.test',PASSWORD))
             result['attacks'].append({'type':'local_identity_mismatch','status':response.status_code,'rejected':response.status_code==403})
-            m['from']='acceptance@family.test'
-            response=await client.post(local,json=m,auth=('acceptance@family.test','wrong-password'))
+            m['from']=f'{agent}@family.test'
+            response=await client.post(local,json=m,auth=(f'{agent}@family.test','wrong-password'))
             result['attacks'].append({'type':'unauthorized_credentials','status':response.status_code,'rejected':response.status_code==401})
             response=await client.post('http://tlcp-family:9080'+PREFIX+'/message',json=m,headers={'X-ATP-TLCP-Target':'attacker.invalid:7443','X-ATP-TLCP-Server-Name':'attacker.invalid'})
             result['attacks'].append({'type':'unauthorized_destination','status':response.status_code,'rejected':response.status_code==403})
     print(json.dumps(result))
+    assert all(row['status']==202 and row['decrypted_equal'] and row['transport']=='TLCPv1.1' for row in result['legal']), 'Legal TLCP delivery failed'
+    assert all(row['rejected'] for row in result['attacks']), 'Attack was not rejected'
 
 async def transfer():
     """Submit through real delivery queue and poll recipient, no DB shortcuts."""
@@ -96,20 +112,21 @@ async def transfer():
     size=int(sys.argv[3]) if len(sys.argv)>3 else 128
     marker='probe-'+str(time.time_ns())
     body=marker+'x'*(size-11-len(marker))
-    async with httpx.AsyncClient(timeout=10) as c:
+    async with AcceptanceClient(timeout=10) as c:
         for d in ['family',domain]:
-            r=await c.post(f'https://server-{d}.{d}.test:7443{PREFIX}/register',json={'agent_id':'acceptance','password':PASSWORD})
+            r=await c.post(f'https://server-{d}.{d}.test:7443{PREFIX}/register',json={'agent_id':marker,'password':PASSWORD})
             assert r.status_code in (201,409),r.text
-        m=ATPMessage.create('acceptance@family.test',f'acceptance@{domain}.test',{'body':body})
-        t=time.monotonic();r=await c.post(f'https://server-family.family.test:7443{PREFIX}/message',json=m.to_dict(),auth=('acceptance@family.test',PASSWORD))
+        m=ATPMessage.create(f'{marker}@family.test',f'{marker}@{domain}.test',{'body':body})
+        t=time.monotonic();r=await c.post(f'https://server-family.family.test:7443{PREFIX}/message',json=m.to_dict(),auth=(f'{marker}@family.test',PASSWORD))
         assert r.status_code==202,r.text
         while time.monotonic()-t<30:
-            r=await c.get(f'https://server-{domain}.{domain}.test:7443{PREFIX}/messages',params={'limit':100},auth=(f'acceptance@{domain}.test',PASSWORD))
+            r=await c.get(f'https://server-{domain}.{domain}.test:7443{PREFIX}/messages',params={'limit':100},auth=(f'{marker}@{domain}.test',PASSWORD))
             found=next((x for x in r.json().get('messages',[]) if x['nonce']==m.nonce),None)
             if found:
                 print(json.dumps({'passed':found['payload']=={'body':body},'elapsed_seconds':time.monotonic()-t,'nonce':m.nonce}));return
             await asyncio.sleep(.2)
         print(json.dumps({'passed':False,'elapsed_seconds':time.monotonic()-t,'nonce':m.nonce}))
+        raise RuntimeError('Delivery did not recover within 30 seconds')
 
 if __name__=='__main__':
     if sys.argv[1]=='benchmark': benchmark()

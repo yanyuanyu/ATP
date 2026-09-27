@@ -15,6 +15,13 @@ def test_sm3_official_abc_vector():
     )
 
 
+@pytest.mark.parametrize("data", [b"", b"abc", bytes(range(256)) * 256])
+def test_native_sm3_matches_portable_fallback(data):
+    native = sm3_digest(data)
+    with patch("atp.security.sm2.hashlib.new", side_effect=ValueError("SM3 unavailable")):
+        assert sm3_digest(data) == native
+
+
 def test_sm2_round_trip_and_tamper_detection():
     private_key = SM2PrivateKey.generate()
     signature = private_key.sign(b"ATP national cryptography")

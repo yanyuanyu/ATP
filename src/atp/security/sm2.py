@@ -9,6 +9,7 @@ default nonce generator with ``secrets``.
 from __future__ import annotations
 
 import secrets
+import hashlib
 from dataclasses import dataclass
 
 from gmssl import sm2, sm3
@@ -26,8 +27,12 @@ _B = int(_CURVE["b"], 16)
 
 
 def sm3_digest(data: bytes) -> bytes:
-    """Return the 32-byte SM3 digest of *data*."""
-    return bytes.fromhex(sm3.sm3_hash(list(data)))
+    """Return SM3, using native OpenSSL when available, never another hash."""
+    try:
+        return hashlib.new("sm3", data).digest()
+    except ValueError:
+        # Some Python/OpenSSL builds lack SM3. Keep the identical wire format.
+        return bytes.fromhex(sm3.sm3_hash(list(data)))
 
 
 def _secure_scalar_hex() -> str:

@@ -22,6 +22,33 @@ from atp.core.message import ATPMessage
 from atp.core.signature import Signer, Verifier
 from atp.server.delivery import DeliveryManager
 from atp.server.routes import get_routes
+from atp.storage.messages import MessageStore
+from unittest.mock import patch
+
+
+def test_sm2_wrapping_preserves_leading_04_coordinate():
+    key = SM2PrivateKey(
+        f"{11:064x}",
+        "04b3cb10c9c6d8e27c1aab770f67f543125dcdd589c2ff82668c74d78ce20ace"
+        "63516355287e39fe4918e5c02e2b0b930c94816e63c4bc72739a8fd805174a4b",
+    )
+    encrypted = encrypt_payload({"body": "edge key"}, recipient_public_key=key.public_key(), aad=b"edge")
+    assert decrypt_payload(encrypted, recipient_private_key=key, aad=b"edge") == {"body": "edge key"}
+
+
+@pytest.mark.parametrize("portable_encrypt", [False, True])
+def test_native_and_portable_sm3_envelopes_are_interoperable(portable_encrypt):
+    key = SM2PrivateKey.generate()
+    payload = {"body": "existing wire compatibility"}
+    aad = b"fixed-aad"
+    if portable_encrypt:
+        with patch("atp.security.sm2.hashlib.new", side_effect=ValueError("no native SM3")):
+            encrypted = encrypt_payload(payload, recipient_public_key=key.public_key(), aad=aad)
+        assert decrypt_payload(encrypted, recipient_private_key=key, aad=aad) == payload
+    else:
+        encrypted = encrypt_payload(payload, recipient_public_key=key.public_key(), aad=aad)
+        with patch("atp.security.sm2.hashlib.new", side_effect=ValueError("no native SM3")):
+            assert decrypt_payload(encrypted, recipient_private_key=key, aad=aad) == payload
 
 
 def _aad() -> bytes:
@@ -71,7 +98,7 @@ def test_sm4_aad_tamper_is_rejected():
 
 
 @pytest.mark.asyncio
-async def test_delivery_encrypts_before_atk_signing():
+async def test_delivery_encrypts_before_atk_signing(tmp_path):
     sender = SM2PrivateKey.generate()
     recipient = SM2PrivateKey.generate()
     resolver = AsyncMock()
@@ -85,7 +112,7 @@ async def test_delivery_encrypts_before_atk_signing():
     transport = AsyncMock()
     transport.post_message = AsyncMock(return_value=MagicMock(success=True))
     manager = DeliveryManager(
-        message_store=MagicMock(),
+        message_store=MessageStore(tmp_path / "wire.db"),
         dns_resolver=resolver,
         transport=transport,
         signer=Signer(sender, "default", "family.test"),

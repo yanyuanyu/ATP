@@ -19,7 +19,7 @@ class RuntimeServerConfig:
     key_algorithm: str = "sm2"
     max_message_size: int = 1_048_576  # 1 MB
     replay_max_age: int = 300
-    retry_max_attempts: int = 6
+    retry_max_attempts: int = 60
     log_level: str = "INFO"
     admin_token: str = ""
     payload_encryption: bool = True

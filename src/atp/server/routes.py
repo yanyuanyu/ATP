@@ -16,6 +16,7 @@ from atp.core.errors import MessageFormatError
 from atp.storage.messages import MessageStatus
 from atp.security.sm2 import SM2PrivateKey
 from atp.security.sm4 import SM4PayloadError, decrypt_payload, message_aad
+from atp.security.transfer import parse_transfer_proof, message_digest
 
 logger = logging.getLogger("atp.server")
 
@@ -185,7 +186,44 @@ async def handle_message(request: Request) -> JSONResponse:
                     },
                 )
 
+        # A new authenticated attempt may carry an old immutable business message.
+        # Ordinary submissions still use the original replay window below.
+        encoded_proof = request.headers.get("x-atp-transfer-proof")
+        if encoded_proof is not None:
+            if is_local_submission:
+                return JSONResponse({"error": "Transfer proof is server-to-server only"}, status_code=403)
+            try:
+                proof = parse_transfer_proof(encoded_proof, message)
+                recipient = AgentID.parse(message.to_id)
+            except Exception:
+                return JSONResponse({"error": "Invalid transfer proof"}, status_code=400)
+            if recipient.domain != server.config.domain:
+                return JSONResponse({"error": "Transfer recipient is not local"}, status_code=403)
+            verified = await server.atk_verifier.verify(proof)
+            server.metrics.record_atk(verified.passed)
+            if not verified.passed:
+                return JSONResponse({"error": "Transfer proof signature failed"}, status_code=403)
+            if not server.replay_guard.check(
+                proof.nonce, proof.timestamp, sender="transfer:" + proof.from_id
+            ):
+                server.metrics.record_replay_blocked()
+                return JSONResponse({"error": "Transfer attempt replay detected"}, status_code=400)
+            try:
+                inserted = server.queue._store.accept_transfer(message, message_digest(message))
+            except ValueError:
+                return JSONResponse({"error": "Conflicting business nonce"}, status_code=409)
+            if inserted:
+                server.metrics.record_message_received()
+                server.metrics.record_local_delivery()
+            return JSONResponse(
+                {"status": "accepted" if inserted else "already_accepted",
+                 "nonce": message.nonce, "timestamp": int(time.time())}, status_code=202,
+            )
+
         # 5. Replay check (both local and remote)
+        if server.queue._store.has_transfer_receipt(message.nonce):
+            server.metrics.record_replay_blocked()
+            return JSONResponse({"error": "Replay detected"}, status_code=400)
         if not server.replay_guard.check(
             message.nonce, message.timestamp, sender=message.from_id
         ):
@@ -334,7 +372,7 @@ async def handle_capabilities(request: Request) -> JSONResponse:
     server = request.app.state.server
     return JSONResponse({
         "version": "1.0",
-        "capabilities": ["message"],
+        "capabilities": ["message", "authenticated-transfer-v1"],
         "protocols": ["atp/1"],
         "max_payload_size": server.config.max_message_size,
     })

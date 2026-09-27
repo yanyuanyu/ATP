@@ -3,6 +3,8 @@
 No key material or hashes are printed; only equality results. No retry timers are edited.
 """
 import hashlib
+import os
+import shlex
 import json
 import subprocess
 import sys
@@ -13,7 +15,8 @@ ROOT=Path(__file__).resolve().parents[1]
 REPORT=ROOT/'traces/acceptance/recovery.json'
 
 def docker(*args, check=True):
-    p=subprocess.run(['wsl','-d','Ubuntu','--','docker',*args],capture_output=True)
+    prefix=shlex.split(os.environ.get('ATP_DOCKER_COMMAND', 'docker'))
+    p=subprocess.run([*prefix,*args],capture_output=True)
     if check and p.returncode:
         raise RuntimeError(p.stdout.decode(errors='replace')+p.stderr.decode(errors='replace'))
     return p.returncode,p.stdout.decode('utf-8',errors='replace').strip()
@@ -57,9 +60,11 @@ def main():
         report['restart'].append(item); print(json.dumps(item),flush=True)
         REPORT.write_text(json.dumps(report,indent=2),encoding='utf-8')
 
+    mailbox='recovery-'+str(time.time_ns())+'@hotel.test'
+    py('hack-server-hotel',f"import httpx; r=httpx.post('https://server-hotel.hotel.test:7443/.well-known/atp/v1/register',json={{'agent_id':'{mailbox}','password':'acceptance-local-test'}}); assert r.status_code==201,r.text")
     docker('stop','hack-server-hotel')
     try:
-        nonce=py('hack-server-family',"import httpx; from atp.core.message import ATPMessage; m=ATPMessage.create('acceptance@family.test','acceptance@hotel.test',{'body':'natural-offline-recovery'}); r=httpx.post('https://server-family.family.test:7443/.well-known/atp/v1/message',json=m.to_dict(),auth=('acceptance@family.test','acceptance-local-test')); assert r.status_code==202,r.text; print(m.nonce)")
+        nonce=py('hack-server-family',f"import httpx; from atp.core.message import ATPMessage; httpx.post('https://server-family.family.test:7443/.well-known/atp/v1/register',json={{'agent_id':'acceptance','password':'acceptance-local-test'}}); m=ATPMessage.create('acceptance@family.test','{mailbox}',{{'body':'natural-offline-recovery'}}); r=httpx.post('https://server-family.family.test:7443/.well-known/atp/v1/message',json=m.to_dict(),auth=('acceptance@family.test','acceptance-local-test')); assert r.status_code==202,r.text; print(m.nonce)")
         queued=None
         deadline=time.monotonic()+15
         while time.monotonic()<deadline:
@@ -69,7 +74,7 @@ def main():
         t=time.monotonic(); docker('start','hack-server-hotel')
         found=False
         while time.monotonic()-t<90:
-            rc,out=docker('exec','hack-server-hotel','python','-c',f"import httpx,json; r=httpx.get('https://server-hotel.hotel.test:7443/.well-known/atp/v1/messages',params={{'limit':100}},auth=('acceptance@hotel.test','acceptance-local-test')); print(json.dumps(any(x['nonce']=='{nonce}' and x['payload'].get('body')=='natural-offline-recovery' for x in r.json().get('messages',[]))))",check=False)
+            rc,out=docker('exec','hack-server-hotel','python','-c',f"import httpx,json; r=httpx.get('https://server-hotel.hotel.test:7443/.well-known/atp/v1/messages',params={{'limit':100}},auth=('{mailbox}','acceptance-local-test')); print(json.dumps(any(x['nonce']=='{nonce}' and x['payload'].get('body')=='natural-offline-recovery' for x in r.json().get('messages',[]))))",check=False)
             if rc==0 and out=='true': found=True;break
             time.sleep(.5)
         report['queued_recovery']={'delivered_and_decrypted':found,'seconds_from_start_command':time.monotonic()-t,'initial_queue_state':queued,'retry_timer_modified':False}

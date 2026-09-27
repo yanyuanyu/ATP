@@ -94,7 +94,8 @@ class HTTPTransport:
         return self._client
 
     async def post_message(
-        self, base_url: str, message: ATPMessage, auth: tuple[str, str] | None = None
+        self, base_url: str, message: ATPMessage, auth: tuple[str, str] | None = None,
+        *, transfer_proof: str | None = None,
     ) -> TransportResult:
         """POST to {base_url}/.well-known/atp/v1/message
 
@@ -108,6 +109,8 @@ class HTTPTransport:
         )
         headers = {"Content-Type": "application/atp+json"}
         headers.update(relay_headers)
+        if transfer_proof is not None:
+            headers["X-ATP-Transfer-Proof"] = transfer_proof
         if auth:
             credentials = base64.b64encode(f"{auth[0]}:{auth[1]}".encode()).decode()
             headers["Authorization"] = f"Basic {credentials}"

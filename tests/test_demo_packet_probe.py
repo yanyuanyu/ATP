@@ -14,6 +14,9 @@ SPEC.loader.exec_module(packet_probe)
 
 
 def test_tlcp_gateways_are_cross_domain() -> None:
+    assert packet_probe.packet_scope("172.28.0.11", "172.28.0.12") == "cross_domain"
+    assert packet_probe.node_for("172.28.0.13", "172.28.0.11") == "tlcp-payment"
+    assert packet_probe.node_for("172.28.1.254", "172.28.1.1") == "travel@family.test"
     assert packet_probe.packet_scope("172.28.1.2", "172.28.2.2") == "cross_domain"
     assert packet_probe.packet_scope("172.28.3.2", "172.28.1.2") == "cross_domain"
 

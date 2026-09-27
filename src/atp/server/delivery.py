@@ -2,6 +2,7 @@
 
 import asyncio
 import logging
+import random
 import time
 
 from atp.core.message import ATPMessage
@@ -11,6 +12,7 @@ from atp.discovery.dns import BaseDNSResolver
 from atp.security.atk import ATKRecord
 from atp.security.sm2 import SM2PublicKey
 from atp.security.sm4 import encrypt_payload, message_aad
+from atp.security.transfer import make_transfer_proof
 from atp.storage.messages import MessageStore, MessageStatus
 
 logger = logging.getLogger("atp.server.delivery")
@@ -24,7 +26,7 @@ class DeliveryManager:
         transport,
         signer: Signer,
         server_domain: str,
-        max_retries: int = 6,
+        max_retries: int = 60,
         metrics=None,
         payload_encryption: bool = False,
         encryption_selector: str = "default",
@@ -42,6 +44,7 @@ class DeliveryManager:
         self._running = False
 
     async def start(self) -> None:
+        self._store.recover_interrupted_deliveries()
         self._running = True
         self._task = asyncio.create_task(self._delivery_loop())
 
@@ -56,23 +59,50 @@ class DeliveryManager:
 
     async def _delivery_loop(self) -> None:
         """Loop: get pending messages, attempt transfer, handle results."""
-        while self._running:
-            try:
-                pending = self._store.get_pending_deliveries(limit=20)
+        active = {}
+        served = set()
+        try:
+            while self._running:
+                for domain, task in list(active.items()):
+                    if task.done():
+                        del active[domain]
+                        try:
+                            task.result()
+                        except Exception:
+                            logger.exception("Delivery worker failed")
+                try:
+                    available = 4 - len(active)
+                    pending = self._store.get_fair_pending(set(active) | served, available)
+                    if available and not pending:
+                        # Start another round only after other ready domains had
+                        # a chance; old backlogs must not monopolize all slots.
+                        served.clear()
+                        pending = self._store.get_fair_pending(set(active), available)
+                except Exception:
+                    logger.exception("Cannot read delivery queue; retrying")
+                    await asyncio.sleep(1)
+                    continue
                 for stored in pending:
-                    await self._deliver_one(stored)
-            except asyncio.CancelledError:
-                break
-            except Exception as e:
-                logger.error(f"Delivery loop error: {e}")
-            await asyncio.sleep(5)
+                    domain = AgentID.parse(stored.to_id).domain
+                    served.add(domain)
+                    active[domain] = asyncio.create_task(self._deliver_one(stored))
+                # Continuous admission, not a barrier after a batch of 20.
+                await asyncio.sleep(0.1)
+        finally:
+            for task in active.values():
+                task.cancel()
+            await asyncio.gather(*active.values(), return_exceptions=True)
 
     async def _deliver_one(self, stored) -> None:
         """Deliver one message. On success mark DELIVERED. On failure mark retry or bounce."""
         message = ATPMessage.from_json(stored.message_json)
         self._store.update_status(stored.nonce, MessageStatus.DELIVERING)
 
-        success = await self.transfer(message)
+        try:
+            success = await asyncio.wait_for(self.transfer(message), timeout=8)
+        except Exception:
+            logger.warning("Delivery attempt failed for %s", stored.nonce, exc_info=True)
+            success = False
         if success:
             self._store.update_status(stored.nonce, MessageStatus.DELIVERED)
             if self._metrics:
@@ -101,6 +131,10 @@ class DeliveryManager:
         public key, not against any individual agent's key.
         """
         try:
+            # Immutable wire body makes lost-ACK retries safely identifiable.
+            cached = self._store.get_wire(message.nonce)
+            if cached is not None:
+                message = cached
             target = AgentID.parse(message.to_id)
             server_info = await self._resolver.query_svcb(target.domain)
             if not server_info:
@@ -146,19 +180,28 @@ class DeliveryManager:
             # Sign the final envelope.  The ATK signature must cover the
             # ciphertext, otherwise a receiver would verify a different
             # payload after encryption.
-            self._signer.sign(message)
+            if cached is None:
+                self._signer.sign(message)
+                message = self._store.save_wire(message)
 
             base_url = f"https://{server_info.host}:{server_info.port}"
-            result = await self._transport.post_message(base_url, message)
+            result = await self._transport.post_message(
+                base_url, message,
+                transfer_proof=make_transfer_proof(message, self._signer),
+            )
             return result.success
         except Exception as e:
             logger.error(f"Transfer failed for {message.nonce}: {e}")
             return False
 
     def _next_retry_delay(self, retry_count: int) -> int:
-        """Exponential backoff: 60, 300, 1800, 7200, 28800, 86400"""
-        delays = [60, 300, 1800, 7200, 28800, 86400]
-        return delays[min(retry_count, len(delays) - 1)]
+        """Bound recovery latency: 2/4/8 seconds, then 8–10 seconds with jitter.
+
+        A retry keeps the original nonce and timestamp; replay protection and
+        application receipt checks remain in force. Delivery is not unbounded.
+        """
+        base = (2, 4, 8)[min(max(retry_count, 0), 2)]
+        return base + random.randint(0, 2)
 
     async def _send_bounce(self, original: ATPMessage, error: str) -> None:
         """Generate bounce notification.

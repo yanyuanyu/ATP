@@ -8,8 +8,14 @@ services:
     image: internetsystemsconsortium/bind9:9.18
     container_name: hack-dns
     networks:
-      atpnet:
+      backbone:
         ipv4_address: 172.28.0.10
+      family:
+        ipv4_address: 172.28.1.10
+      hotel:
+        ipv4_address: 172.28.2.10
+      payment:
+        ipv4_address: 172.28.3.10
     volumes:
       - ./bind/named.conf:/etc/bind/named.conf:ro
       - ./bind/zones:/etc/bind/zones:ro
@@ -24,9 +30,13 @@ services:
     container_name: hack-tlcp-family
     hostname: tlcp-family.family.test
     networks:
-      atpnet:
+      family:
         ipv4_address: 172.28.1.2
+      backbone:
+        ipv4_address: 172.28.0.11
     environment:
+      - ATP_INTERNAL_ADDR=172.28.1.2:9080
+      - ATP_TLCP_ADDR=172.28.0.11:8443
       - ATP_BACKEND_URL=https://server-family:7443
       - ATP_BACKEND_CA=/tlcp/ca.crt
       - ATP_BACKEND_SERVER_NAME=server-family.family.test
@@ -44,9 +54,13 @@ services:
     container_name: hack-tlcp-hotel
     hostname: tlcp-hotel.hotel.test
     networks:
-      atpnet:
+      hotel:
         ipv4_address: 172.28.2.2
+      backbone:
+        ipv4_address: 172.28.0.12
     environment:
+      - ATP_INTERNAL_ADDR=172.28.2.2:9080
+      - ATP_TLCP_ADDR=172.28.0.12:8443
       - ATP_BACKEND_URL=https://server-hotel:7443
       - ATP_BACKEND_CA=/tlcp/ca.crt
       - ATP_BACKEND_SERVER_NAME=server-hotel.hotel.test
@@ -64,9 +78,13 @@ services:
     container_name: hack-tlcp-payment
     hostname: tlcp-payment.payment.test
     networks:
-      atpnet:
+      payment:
         ipv4_address: 172.28.3.2
+      backbone:
+        ipv4_address: 172.28.0.13
     environment:
+      - ATP_INTERNAL_ADDR=172.28.3.2:9080
+      - ATP_TLCP_ADDR=172.28.0.13:8443
       - ATP_BACKEND_URL=https://server-payment:7443
       - ATP_BACKEND_CA=/tlcp/ca.crt
       - ATP_BACKEND_SERVER_NAME=server-payment.payment.test
@@ -120,9 +138,9 @@ services:
     container_name: hack-server-family
     hostname: server-family.family.test
     networks:
-      atpnet:
+      family:
         ipv4_address: 172.28.1.1
-    dns: 172.28.0.10
+    dns: 172.28.1.10
     environment:
       - SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt
       - ATP_TRANSPORT_MODE=${ATP_TRANSPORT_MODE:-tlcp}
@@ -138,7 +156,7 @@ services:
       - -c
       - |
         update-ca-certificates 2>/dev/null
-        atp server start --key-algorithm sm2 --domain family.test --port 7443 --host 0.0.0.0 --cert /atp/certs/server.crt --key /atp/certs/server.key
+        exec atp server start --key-algorithm sm2 --domain family.test --port 7443 --host 0.0.0.0 --cert /atp/certs/server.crt --key /atp/certs/server.key
     depends_on:
       - dns
       - tlcp-family
@@ -150,9 +168,9 @@ services:
     container_name: hack-server-hotel
     hostname: server-hotel.hotel.test
     networks:
-      atpnet:
+      hotel:
         ipv4_address: 172.28.2.1
-    dns: 172.28.0.10
+    dns: 172.28.2.10
     environment:
       - SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt
       - ATP_TRANSPORT_MODE=${ATP_TRANSPORT_MODE:-tlcp}
@@ -168,7 +186,7 @@ services:
       - -c
       - |
         update-ca-certificates 2>/dev/null
-        atp server start --key-algorithm sm2 --domain hotel.test --port 7443 --host 0.0.0.0 --cert /atp/certs/server.crt --key /atp/certs/server.key
+        exec atp server start --key-algorithm sm2 --domain hotel.test --port 7443 --host 0.0.0.0 --cert /atp/certs/server.crt --key /atp/certs/server.key
     depends_on:
       - dns
       - tlcp-hotel
@@ -180,9 +198,9 @@ services:
     container_name: hack-server-payment
     hostname: server-payment.payment.test
     networks:
-      atpnet:
+      payment:
         ipv4_address: 172.28.3.1
-    dns: 172.28.0.10
+    dns: 172.28.3.10
     environment:
       - SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt
       - ATP_TRANSPORT_MODE=${ATP_TRANSPORT_MODE:-tlcp}
@@ -198,7 +216,7 @@ services:
       - -c
       - |
         update-ca-certificates 2>/dev/null
-        atp server start --key-algorithm sm2 --domain payment.test --port 7443 --host 0.0.0.0 --cert /atp/certs/server.crt --key /atp/certs/server.key
+        exec atp server start --key-algorithm sm2 --domain payment.test --port 7443 --host 0.0.0.0 --cert /atp/certs/server.crt --key /atp/certs/server.key
     depends_on:
       - dns
       - tlcp-payment
@@ -210,9 +228,9 @@ services:
     container_name: hack-agent-search
     hostname: agent-search.hotel.test
     networks:
-      atpnet:
+      hotel:
         ipv4_address: 172.28.2.101
-    dns: 172.28.0.10
+    dns: 172.28.2.10
     volumes:
       - ./certs/ca.crt:/usr/local/share/ca-certificates/atp-ca.crt:ro
       - ./agents:/agents:ro
@@ -244,9 +262,9 @@ services:
     container_name: hack-agent-rates
     hostname: agent-rates.hotel.test
     networks:
-      atpnet:
+      hotel:
         ipv4_address: 172.28.2.103
-    dns: 172.28.0.10
+    dns: 172.28.2.10
     volumes:
       - ./certs/ca.crt:/usr/local/share/ca-certificates/atp-ca.crt:ro
       - ./agents:/agents:ro
@@ -277,9 +295,9 @@ services:
     container_name: hack-agent-bill
     hostname: agent-bill.payment.test
     networks:
-      atpnet:
+      payment:
         ipv4_address: 172.28.3.101
-    dns: 172.28.0.10
+    dns: 172.28.3.10
     volumes:
       - ./certs/ca.crt:/usr/local/share/ca-certificates/atp-ca.crt:ro
       - ./agents:/agents:ro
@@ -313,9 +331,9 @@ services:
     profiles: [events]
     hostname: event-sub.hotel.test
     networks:
-      atpnet:
+      hotel:
         ipv4_address: 172.28.2.102
-    dns: 172.28.0.10
+    dns: 172.28.2.10
     volumes:
       - ./certs/ca.crt:/usr/local/share/ca-certificates/atp-ca.crt:ro
       - ./agents:/agents:ro
@@ -340,9 +358,9 @@ services:
     profiles: [events]
     hostname: event-pub.family.test
     networks:
-      atpnet:
+      family:
         ipv4_address: 172.28.1.103
-    dns: 172.28.0.10
+    dns: 172.28.1.10
     volumes:
       - ./certs/ca.crt:/usr/local/share/ca-certificates/atp-ca.crt:ro
       - ./agents:/agents:ro
@@ -373,9 +391,9 @@ services:
     profiles: [offline]
     hostname: offline-sender.family.test
     networks:
-      atpnet:
+      family:
         ipv4_address: 172.28.1.104
-    dns: 172.28.0.10
+    dns: 172.28.1.10
     volumes:
       - ./certs/ca.crt:/usr/local/share/ca-certificates/atp-ca.crt:ro
       - ./agents:/agents:ro
@@ -403,9 +421,9 @@ services:
     profiles: [scenario]
     hostname: scene-runner.family.test
     networks:
-      atpnet:
+      family:
         ipv4_address: 172.28.1.105
-    dns: 172.28.0.10
+    dns: 172.28.1.10
     volumes:
       - ./certs/ca.crt:/usr/local/share/ca-certificates/atp-ca.crt:ro
       - ./agents:/agents:ro
@@ -435,9 +453,9 @@ services:
     profiles: [scenario]
     hostname: scene-ack.family.test
     networks:
-      atpnet:
+      family:
         ipv4_address: 172.28.1.106
-    dns: 172.28.0.10
+    dns: 172.28.1.10
     volumes:
       - ./certs/ca.crt:/usr/local/share/ca-certificates/atp-ca.crt:ro
       - ./agents:/agents:ro
@@ -463,9 +481,9 @@ services:
       - smoke
     hostname: smoke.family.test
     networks:
-      atpnet:
+      family:
         ipv4_address: 172.28.1.102
-    dns: 172.28.0.10
+    dns: 172.28.1.10
     volumes:
       - ./certs/ca.crt:/usr/local/share/ca-certificates/atp-ca.crt:ro
       - ./agents:/agents:ro
@@ -496,8 +514,14 @@ services:
     container_name: hack-demo-controller
     hostname: demo-controller.atp.test
     networks:
-      atpnet:
-        ipv4_address: 172.28.4.1
+      family:
+        ipv4_address: 172.28.1.254
+      hotel:
+        ipv4_address: 172.28.2.254
+      payment:
+        ipv4_address: 172.28.3.254
+      backbone:
+        ipv4_address: 172.28.0.20
     dns: 172.28.0.10
     ports:
       - "127.0.0.1:8080:8080"
@@ -539,11 +563,32 @@ services:
       - server-payment
 
 networks:
-  atpnet:
+  # Domain servers/agents never share a bridge. Only TLCP gateways, DNS and
+  # the local administrative controller attach to more than one network.
+  backbone:
     driver: bridge
     ipam:
       config:
-        - subnet: 172.28.0.0/16
+        - subnet: 172.28.0.0/24
+          gateway: 172.28.0.253
+  family:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.28.1.0/24
+          gateway: 172.28.1.253
+  hotel:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.28.2.0/24
+          gateway: 172.28.2.253
+  payment:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.28.3.0/24
+          gateway: 172.28.3.253
 
 volumes:
   server-family-data:

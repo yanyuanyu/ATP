@@ -448,16 +448,12 @@ class TestDeliveryManager:
             signer=MagicMock(),
             server_domain="test.local",
         )
-        assert dm._next_retry_delay(0) == 60
-        assert dm._next_retry_delay(1) == 300
-        assert dm._next_retry_delay(2) == 1800
-        assert dm._next_retry_delay(3) == 7200
-        assert dm._next_retry_delay(4) == 28800
-        assert dm._next_retry_delay(5) == 86400
-        assert dm._next_retry_delay(99) == 86400  # clamp
+        for count, minimum in [(0, 2), (1, 4), (2, 8), (3, 8), (99, 8)]:
+            for _ in range(20):
+                assert minimum <= dm._next_retry_delay(count) <= minimum + 2
 
     @pytest.mark.asyncio
-    async def test_transfer_success(self):
+    async def test_transfer_success(self, tmp_path):
         mock_resolver = AsyncMock()
         mock_resolver.query_svcb = AsyncMock(return_value=MagicMock(host="remote.com", port=7443))
 
@@ -465,7 +461,7 @@ class TestDeliveryManager:
         mock_transport.post_message = AsyncMock(return_value=MagicMock(success=True))
 
         dm = DeliveryManager(
-            message_store=MagicMock(),
+            message_store=MessageStore(tmp_path / "wire.db"),
             dns_resolver=mock_resolver,
             transport=mock_transport,
             signer=MagicMock(),

@@ -104,6 +104,7 @@ type PacketSignal = {
   src_node?: string
   dst_node?: string
   protocol?: string
+  secure_transport?: string
   qname?: string
   qtype?: string
   bytes?: number
@@ -208,6 +209,39 @@ const EMPTY_CHAT: ChatState = {
 
 type LiveState = "offline" | "connecting" | "live" | "retrying"
 
+type ControllerState = "connecting" | "connected" | "disconnected"
+const TLCP_LABEL = "TLCP（SM2/SM4/SM3）"
+const TLCP_DETAILS = "TLCP 1.1 · SM2 双证书 · SM4 加密 · SM3 摘要"
+
+function atpStatus(controller: ControllerState, topology?: TopologyState) {
+  if (controller === "connecting") return "ATP 连接中"
+  if (controller !== "connected") return "ATP 未连接"
+  const states = ["server-family", "server-hotel", "server-payment"].map((name) => topology?.containers[name])
+  if (states.every((state) => state === "running")) return "ATP 已连接"
+  if (states.every((state) => ["running", "created", "restarting"].includes(state || ""))) return "ATP 连接中"
+  return "ATP 未连接"
+}
+
+function agentStatus(controller: ControllerState, chat: ChatState) {
+  if (controller === "connecting") return "旅行智能体连接中"
+  if (controller !== "connected") return "旅行智能体未连接"
+  if (chat.error || chat.runtime.connection === "failed" || ["error", "failed", "fatal"].includes(chat.runtime.status)) return "旅行智能体运行异常"
+  if (["starting", "queued"].includes(chat.status) || chat.runtime.status === "starting") return "旅行智能体连接中"
+  if (chat.runtime.status !== "ready") return "旅行智能体未启动"
+  if (chat.runtime.connection === "checking") return "旅行智能体连接中"
+  return chat.runtime.connection === "connected" ? "旅行智能体已就绪" : "旅行智能体模型未验证"
+}
+
+function secureLabel(signal?: PacketSignal) {
+  if (signal?.secure_transport?.startsWith("TLCP")) return TLCP_LABEL
+  if (signal?.secure_transport === "TLS") return "TLS"
+  return "加密传输（协议未确认）"
+}
+
+function tlcpObserved(capture?: PacketCaptureState) {
+  return capture?.signals.some((signal) => signal.scope === "cross_domain" && signal.secure_transport?.startsWith("TLCP")) || false
+}
+
 type ProtocolStage = {
   name: string
   value: string
@@ -234,6 +268,9 @@ const NODE_POINTS: Record<string, [number, number]> = {
   "server-family": [165, 208],
   "server-hotel": [470, 208],
   "server-payment": [775, 208],
+  "tlcp-family": [165, 208],
+  "tlcp-hotel": [470, 208],
+  "tlcp-payment": [775, 208],
   dns: [470, 53],
 }
 
@@ -324,7 +361,7 @@ function protocolStages(event?: EventRecord, capture?: PacketCaptureState): { st
   const stages: ProtocolStage[] = [
     { name: "本地提交", state: "skip", value: "未观测到" },
     { name: "DNS 发现", state: "skip", value: "未观测到" },
-    { name: "TLS 传输", state: "skip", value: "未观测到" },
+    { name: TLCP_LABEL, state: "skip", value: "未观测到" },
     { name: "ATS 策略", state: "skip", value: "未观测到" },
     { name: "ATK 签名", state: "skip", value: "未观测到" },
     { name: "投递", state: "skip", value: "未观测到" },
@@ -339,7 +376,7 @@ function protocolStages(event?: EventRecord, capture?: PacketCaptureState): { st
     stages.splice(0, stages.length,
       { name: "本地提交", state: "pass", value: "上游已接受" },
       { name: "DNS 发现", state: "pass", value: "路径已解析" },
-      { name: "TLS 传输", state: "pass", value: "已完成" },
+      { name: TLCP_LABEL, state: "pass", value: "已完成" },
       { name: "ATS 策略", state: "pass", value: "接收方已接受" },
       { name: "ATK 签名", state: "pass", value: "接收方已接受" },
       { name: "投递", state: "pass", value: "智能体已接收" },
@@ -349,14 +386,14 @@ function protocolStages(event?: EventRecord, capture?: PacketCaptureState): { st
     stages[0] = { name: "本地提交", state: "pass", value: "家庭域已存储" }
     if (event.status === "failed") {
       stages[1] = { name: "DNS 发现", state: "info", value: "已尝试传输" }
-      stages[2] = { name: "TLS 传输", state: "fail", value: "目标离线" }
+      stages[2] = { name: TLCP_LABEL, state: "fail", value: "目标离线" }
       stages[3] = { name: "ATS 策略", state: "skip", value: "尚未到达" }
       stages[4] = { name: "ATK 签名", state: "skip", value: "尚未到达" }
       stages[5] = { name: "投递", state: "pending", value: `重试 ${event.retry_count ?? 0}` }
     } else if (event.status === "delivered") {
       stages.splice(1, 5,
         { name: "DNS 发现", state: "pass", value: "路径已解析" },
-        { name: "TLS 传输", state: "pass", value: "已完成" },
+        { name: TLCP_LABEL, state: "pass", value: "已完成" },
         { name: "ATS 策略", state: "pass", value: "接收方已接受" },
         { name: "ATK 签名", state: "pass", value: "接收方已接受" },
         { name: "投递", state: "pass", value: "远端已投递" },
@@ -383,11 +420,11 @@ function protocolStages(event?: EventRecord, capture?: PacketCaptureState): { st
     if (packet.svcb_observed || packet.dns_observed) {
       stages[1] = { name: "DNS 发现", state: "info", value: packet.svcb_observed ? "已观测到 SVCB 查询" : "已观测到 DNS 查询" }
     }
-    if (packet.tls_observed || packet.tcp_observed) {
+    if (tlcpObserved(capture) || packet.tcp_observed) {
       stages[2] = {
-        name: "TLS 传输",
+        name: TLCP_LABEL,
         state: "info",
-        value: packet.tls_observed ? "已观测到 TLS 记录" : "已观测到 TCP SYN",
+        value: tlcpObserved(capture) ? "已观测到 TLCP 1.1 记录" : "已观测到 TCP SYN",
       }
     }
     if (packet.ats_lookup_observed) {
@@ -449,7 +486,7 @@ function SvgNode({
   active?: boolean
   kind?: "agent" | "server" | "dns"
 }) {
-  const isDown = ["exited", "dead", "missing", "unknown"].includes(state)
+  const isDown = !["running", "ready", "idle"].includes(state)
   const height = kind === "dns" ? 58 : kind === "server" ? 64 : 68
   return (
     <g className={cn("topology-node", `topology-${kind}`, isDown && "node-down", state === "idle" && "node-idle", active && "node-active")} transform={`translate(${x} ${y})`}>
@@ -471,8 +508,8 @@ function evidenceLabel(signal?: PacketSignal) {
   if (signal.evidence === "atk_lookup") return `ATK 记录查询 · ${signal.qname}`
   if (signal.evidence === "dns_query") return `DNS 查询 · ${signal.qname}`
   if (signal.evidence === "tcp_connect") return `TCP 连接 · ${signal.src_node} → ${signal.dst_node}`
-  if (signal.evidence === "tls_handshake") return `TLS 握手记录 · ${signal.src_node} → ${signal.dst_node}`
-  if (signal.evidence === "tls_appdata") return `加密 ATP 流量 · ${signal.bytes || 0} 字节`
+  if (signal.evidence === "tls_handshake") return `${secureLabel(signal)} 握手记录 · ${signal.src_node} → ${signal.dst_node}`
+  if (signal.evidence === "tls_appdata") return `${secureLabel(signal)} ATP 流量 · ${signal.bytes || 0} 字节`
   if (signal.evidence === "tcp_reset") return `TCP 重置 · ${signal.src_node} → ${signal.dst_node}`
   return signal.evidence.replaceAll("_", " ")
 }
@@ -483,7 +520,7 @@ function CaptureEvidenceRail({ capture }: { capture?: PacketCaptureState }) {
     ["智能体边缘", summary?.agent_edge_observed],
     ["SVCB", summary?.svcb_observed],
     ["TCP", summary?.tcp_observed],
-    ["TLS", summary?.tls_observed],
+    [TLCP_LABEL, tlcpObserved(capture)],
     ["ATS TXT", summary?.ats_lookup_observed],
     ["ATK TXT", summary?.atk_lookup_observed],
   ] as const
@@ -515,7 +552,7 @@ function TopologyDiagram({ topology, capture }: { topology?: TopologyState; capt
   return (
       <svg className="topology-svg" viewBox="0 0 940 430" preserveAspectRatio="xMidYMid meet" role="img" aria-labelledby="topology-title topology-description">
         <title id="topology-title">包含数据包证据的 ATP 本地 Docker 拓扑</title>
-        <desc id="topology-description">三个 ATP 域，以及 DNS、TCP、TLS、ATS 和 ATK 流量的实时 AF_PACKET 证据。</desc>
+        <desc id="topology-description">三个 ATP 域，跨域采用 TLCP（SM2/SM4/SM3）；展示 DNS、TCP、ATS 和 ATK 的实时证据。本地链路仍可使用 TLS。</desc>
         <defs>
           <pattern id="topology-grid" width="24" height="24" patternUnits="userSpaceOnUse"><path d="M 24 0 L 0 0 0 24" /></pattern>
           <marker id="topology-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" /></marker>
@@ -553,10 +590,13 @@ function TopologyDiagram({ topology, capture }: { topology?: TopologyState; capt
         <SvgNode x={84} y={176} width={162} title="家庭 ATP" meta={`队列 ${queue("server-family")}`} kind="server" state={state("server-family")} active={active.has("server-family")} />
         <SvgNode x={389} y={176} width={162} title="酒店 ATP" meta={`队列 ${queue("server-hotel")}`} kind="server" state={state("server-hotel")} active={active.has("server-hotel")} />
         <SvgNode x={694} y={176} width={162} title="支付 ATP" meta={`队列 ${queue("server-payment")}`} kind="server" state={state("server-payment")} active={active.has("server-payment")} />
-        <SvgNode x={84} y={292} width={162} title="旅行智能体" meta="travel@family" state={capture?.summary.agent_edge_observed ? "running" : "idle"} active={active.has("travel@family.test")} />
+        <SvgNode x={84} y={292} width={162} title="旅行智能体" meta="travel@family" state={topology?.chat && atpStatus("connected", topology) === "ATP 已连接" && agentStatus("connected", topology.chat) === "旅行智能体已就绪" ? "running" : "unknown"} active={active.has("travel@family.test")} />
         <SvgNode x={342} y={292} width={132} title="搜索智能体" meta="search@hotel" state={state("agent-search")} active={active.has("search@hotel.test")} />
         <SvgNode x={482} y={292} width={132} title="价格智能体" meta="rates@hotel" state={state("agent-rates")} active={active.has("rates@hotel.test")} />
         <SvgNode x={694} y={292} width={162} title="结算智能体" meta="bill@payment" state={state("agent-bill")} active={active.has("bill@payment.test")} />
+
+        <text x="470" y="106" textAnchor="middle" className="node-meta">跨域连线：{TLCP_LABEL}</text>
+        <text x="470" y="422" textAnchor="middle" className="node-meta">{TLCP_DETAILS} · ECC-SM2-SM4-CBC-SM3</text>
 
         {path && latestPacket && (
           <g key={`packet-${latestPacket.pseq}-${path}`} className={cn("packet-motion", motionClass)} aria-hidden="true">
@@ -709,18 +749,23 @@ function AgentAuditPanel({ chat }: { chat: ChatState }) {
 
 function AgentConversation({
   chat,
+  controller,
+  atpConnected,
   draft,
   onDraftChange,
   onSend,
   onReset,
 }: {
   chat: ChatState
+  controller: ControllerState
+  atpConnected: boolean
   draft: string
   onDraftChange: (value: string) => void
   onSend: () => void
   onReset: () => void
 }) {
   const busy = ["queued", "starting", "thinking"].includes(chat.status)
+  const readiness = controller === "connected" && !atpConnected ? "旅行智能体未连接（ATP 不可用）" : agentStatus(controller, chat)
   const endRef = useRef<HTMLDivElement | null>(null)
   useEffect(() => {
     const viewport = endRef.current?.closest<HTMLElement>('[data-slot="scroll-area-viewport"]')
@@ -733,7 +778,7 @@ function AgentConversation({
         <CardTitle className="flex items-center gap-2 text-sm"><MessageCircle className="size-4 text-primary" />与旅行智能体对话</CardTitle>
         <CardDescription className="text-xs">为智能体设定目标；每次服务交接仍通过 ATP 完成。</CardDescription>
         <CardAction className="flex items-center gap-2">
-          <Badge variant={chat.runtime.connection === "connected" ? "success" : "secondary"}><Bot />{{ connected: "模型已连接", checking: "正在调用模型", failed: "模型连接失败", unverified: "模型未验证" }[chat.runtime.connection || "unverified"] || "模型未验证"}</Badge>
+          <Badge variant={readiness === "旅行智能体已就绪" ? "success" : "secondary"} aria-live="polite"><Bot />{readiness}</Badge>
           <Tooltip><TooltipTrigger asChild><Button variant="ghost" size="icon-sm" aria-label="删除对话" disabled={busy} onClick={onReset}><Trash2 /></Button></TooltipTrigger><TooltipContent>删除对话</TooltipContent></Tooltip>
         </CardAction>
       </CardHeader>
@@ -748,7 +793,7 @@ function AgentConversation({
             {!chat.messages.length && (
               <div className="chat-empty">
                 <span className="chat-empty-icon"><Bot /></span>
-                <strong>{chat.runtime.connection === "connected" ? "模型接口已验证" : "等待首次模型调用验证"}</strong>
+                <strong>{readiness}</strong>
                 <p>你可以让它搜索酒店、关注价格，或授权模拟预订；也可以在同一会话中继续追问。</p>
               </div>
             )}
@@ -813,7 +858,7 @@ function AgentConversation({
             {busy ? <LoaderCircle className="animate-spin" /> : <Send />}
           </Button>
         </div>
-        <div className="composer-meta"><span>{busy ? "智能体正在执行任务……" : "按 Enter 发送 · Shift+Enter 换行"}</span><code>{chat.runtime.status === "ready" ? "运行环境已启动" : "运行环境未启动"}</code></div>
+        <div className="composer-meta"><span>{busy ? "智能体正在执行任务……" : "按 Enter 发送 · Shift+Enter 换行"}</span><code>{readiness}</code></div>
       </CardFooter>
     </Card>
   )
@@ -830,6 +875,9 @@ export default function App() {
   const [chat, setChat] = useState<ChatState>(EMPTY_CHAT)
   const [draft, setDraft] = useState("")
   const [topology, setTopology] = useState<TopologyState>()
+  const [controller, setController] = useState<ControllerState>("connecting")
+  const topologyRequestRef = useRef(false)
+  const chatRequestRef = useRef(false)
   const [packetCapture, setPacketCapture] = useState<PacketCaptureState>()
   const [liveState, setLiveState] = useState<LiveState>("offline")
   const [statusMessage, setStatusMessage] = useState("模型接口尚未验证。首次请求成功后将显示连接状态。")
@@ -903,9 +951,14 @@ export default function App() {
   }, [])
 
   const refreshTopology = useCallback(async () => {
+    if (topologyRequestRef.current) return
+    topologyRequestRef.current = true
     try {
-      const response = await fetch("/api/state/topology")
+      const response = await fetch("/api/state/topology", { signal: AbortSignal.timeout(5000), cache: "no-store" })
+      if (!response.ok) throw new Error(`HTTP ${response.status}`)
       const payload = await response.json() as TopologyState
+      if (!payload.containers || !payload.chat?.runtime) throw new Error("控制器状态数据不完整")
+      setController("connected")
       setTopology(payload)
       setScenario(payload.scenario || EMPTY_SCENARIO)
       if (payload.chat) setChat(payload.chat)
@@ -918,19 +971,27 @@ export default function App() {
       }
       lastScenarioStatusRef.current = status
     } catch (error) {
+      setController("disconnected")
+      setTopology(undefined)
       setStatusMessage("控制器状态不可用。")
       setStatusMeta(String(error))
+    } finally {
+      topologyRequestRef.current = false
     }
   }, [refreshRuns])
 
   const refreshChat = useCallback(async () => {
+    if (chatRequestRef.current) return
+    chatRequestRef.current = true
     try {
-      const response = await fetch("/api/state/chat")
+      const response = await fetch("/api/state/chat", { signal: AbortSignal.timeout(5000), cache: "no-store" })
       if (!response.ok) return
       const payload = await response.json() as { chat: ChatState }
-      setChat(payload.chat)
+      if (payload.chat?.runtime) setChat(payload.chat)
     } catch {
       // Topology polling still provides a slower fallback copy of chat state.
+    } finally {
+      chatRequestRef.current = false
     }
   }, [])
 
@@ -938,8 +999,8 @@ export default function App() {
     let cancelled = false
     void (async () => {
       try {
-        const list = await refreshRuns()
         await refreshTopology()
+        const list = await refreshRuns()
         if (!cancelled && list.length) await loadTrace(list[0].run_id, true)
       } catch (error) {
         setStatusMessage("无法初始化演示界面。")
@@ -1030,7 +1091,7 @@ export default function App() {
     if (packetFilter === "all") return signal.scope === "cross_domain"
     if (packetFilter === "dns") return ["dns_query", "svcb_lookup"].includes(signal.evidence)
     if (packetFilter === "tcp") return ["tcp_connect", "tcp_reset"].includes(signal.evidence)
-    if (packetFilter === "tls") return ["tls_handshake", "tls_appdata"].includes(signal.evidence) && signal.scope === "cross_domain"
+    if (packetFilter === "tls") return signal.secure_transport?.startsWith("TLCP") && signal.scope === "cross_domain"
     if (packetFilter === "policy") return ["ats_lookup", "atk_lookup"].includes(signal.evidence)
     if (packetFilter === "edge") return signal.scope === "edge_agent"
     return true
@@ -1041,7 +1102,7 @@ export default function App() {
     packetCapture.summary.agent_edge_observed,
     packetCapture.summary.svcb_observed,
     packetCapture.summary.tcp_observed,
-    packetCapture.summary.tls_observed,
+    tlcpObserved(packetCapture),
     packetCapture.summary.ats_lookup_observed,
     packetCapture.summary.atk_lookup_observed,
   ] : []
@@ -1059,7 +1120,7 @@ export default function App() {
           </div>
 
           <div className="scenario-block">
-            <Badge variant="secondary" className="h-8 shrink-0 px-3"><Bot />4 个智能体</Badge>
+            <Badge variant={atpStatus(controller, topology) === "ATP 已连接" ? "success" : "secondary"} className="h-8 shrink-0 px-3" aria-live="polite"><Network />{atpStatus(controller, topology)}</Badge>
             <div className="min-w-0 flex-1">
               <div className="mb-1.5 flex items-center justify-between gap-4 text-xs"><span className="truncate font-medium">{selectedPacket ? evidenceLabel(selectedPacket) : "等待数据包证据"}</span><span className="font-mono text-muted-foreground">{packetProgressFlags.filter(Boolean).length}/6</span></div>
               <Progress value={progress} />
@@ -1099,13 +1160,15 @@ export default function App() {
             </CardHeader>
             <CardContent className="topology-card-content p-2">
               <div className="topology-svg-frame">
-                <TopologyDiagram topology={topology} capture={packetCapture} />
+                <TopologyDiagram topology={topology ? { ...topology, chat } : undefined} capture={packetCapture} />
               </div>
               <TopologyEvidence capture={packetCapture} />
             </CardContent>
           </Card>
 
           <AgentConversation
+            controller={controller}
+            atpConnected={atpStatus(controller, topology) === "ATP 已连接"}
             chat={chat}
             draft={draft}
             onDraftChange={setDraft}
@@ -1121,7 +1184,7 @@ export default function App() {
             <Tabs value={packetFilter} onValueChange={setPacketFilter} className="min-h-0 flex-1 gap-0">
               <div className="border-b px-3 py-2">
                 <TabsList className="grid w-full grid-cols-6">
-                  {[["all", "全部"], ["dns", "DNS"], ["tcp", "TCP"], ["tls", "TLS"], ["policy", "ATS/ATK"], ["edge", "智能体"]].map(([value, label]) => <TabsTrigger key={value} value={value}>{label}</TabsTrigger>)}
+                  {[["all", "全部"], ["dns", "DNS"], ["tcp", "TCP"], ["tls", "TLCP"], ["policy", "ATS/ATK"], ["edge", "智能体"]].map(([value, label]) => <TabsTrigger key={value} value={value}>{label}</TabsTrigger>)}
                 </TabsList>
               </div>
               <CardContent className="min-h-0 flex-1 p-0">
@@ -1160,7 +1223,7 @@ export default function App() {
             </CardHeader>
             <CardContent className="min-h-0 flex-1 bg-muted p-0 text-foreground">
               <ScrollArea className="h-full">
-                <pre className="p-4 font-mono text-micro leading-relaxed whitespace-pre-wrap break-words">{selectedPacket ? JSON.stringify(selectedPacket, null, 2) : "请开始捕获或选择数据包证据。"}</pre>
+                <pre className="p-4 font-mono text-micro leading-relaxed whitespace-pre-wrap break-words">{selectedPacket ? `${selectedPacket.scope === "cross_domain" ? `跨域配置：${TLCP_DETAILS}\n配置套件：ECC-SM2-SM4-CBC-SM3\n记录层观测：${selectedPacket.secure_transport || "尚未确认"}\n算法配置不等同于本数据包已完成握手或验签。\n\n` : ""}${JSON.stringify(selectedPacket, null, 2)}` : "请开始捕获或选择数据包证据。"}</pre>
               </ScrollArea>
             </CardContent>
           </Card>
