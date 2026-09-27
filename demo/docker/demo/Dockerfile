@@ -15,7 +15,7 @@ RUN pip install --no-cache-dir docker
 # needs the Node runtime, pinned production modules and our ATP-specific harness.
 COPY --from=pi-deps /usr/local/bin/node /usr/local/bin/node
 COPY --from=pi-deps /opt/atp-pi/node_modules /opt/atp-pi/node_modules
-COPY agents/pi/runtime.mjs /opt/atp-pi/runtime.mjs
+COPY agents/pi/runtime.mjs agents/pi/guards.mjs /opt/atp-pi/
 
 WORKDIR /app
 COPY demo/ /app/demo/

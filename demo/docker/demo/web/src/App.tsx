@@ -187,7 +187,8 @@ type ChatState = {
   messages: ChatMessage[]
   activities: ChatActivity[]
   agent_audit: AgentAuditEvent[]
-  runtime: { name: string; version: string; model: string; status: string }
+  runtime: { name: string; version: string; model: string; status: string; connection?: string; checked_at?: string | null; connection_error?: { message: string } | null }
+  evidence?: { pending: string | null; price_count: number; search_received: boolean; payment_received: boolean } | null
   error: string | null
   updated_at: string | null
 }
@@ -732,18 +733,22 @@ function AgentConversation({
         <CardTitle className="flex items-center gap-2 text-sm"><MessageCircle className="size-4 text-primary" />与旅行智能体对话</CardTitle>
         <CardDescription className="text-xs">为智能体设定目标；每次服务交接仍通过 ATP 完成。</CardDescription>
         <CardAction className="flex items-center gap-2">
-          <Badge variant={chat.runtime.status === "ready" ? "success" : "secondary"}><Bot />智能体</Badge>
+          <Badge variant={chat.runtime.connection === "connected" ? "success" : "secondary"}><Bot />{{ connected: "模型已连接", checking: "正在调用模型", failed: "模型连接失败", unverified: "模型未验证" }[chat.runtime.connection || "unverified"] || "模型未验证"}</Badge>
           <Tooltip><TooltipTrigger asChild><Button variant="ghost" size="icon-sm" aria-label="删除对话" disabled={busy} onClick={onReset}><Trash2 /></Button></TooltipTrigger><TooltipContent>删除对话</TooltipContent></Tooltip>
         </CardAction>
       </CardHeader>
 
+      <div className="px-4 py-2 text-xs text-muted-foreground" aria-live="polite">
+        {chat.runtime.connection_error?.message || (chat.runtime.checked_at ? `最近模型请求成功：${new Date(chat.runtime.checked_at).toLocaleTimeString()} · ${chat.runtime.model}` : "本地进程启动不代表模型接口可用。")}
+        {chat.evidence?.pending && <span> · 等待{{ search: "搜索结果", subscribe: `价格回复（${chat.evidence.price_count}/3）`, "book+pay": "模拟付款回执" }[chat.evidence.pending] || "智能体回复"}</span>}
+      </div>
       <CardContent className="chat-content min-h-0 flex-1 p-0">
         <ScrollArea className="h-full">
           <div className="chat-thread" aria-live="polite">
             {!chat.messages.length && (
               <div className="chat-empty">
                 <span className="chat-empty-icon"><Bot /></span>
-                <strong>旅行智能体已就绪</strong>
+                <strong>{chat.runtime.connection === "connected" ? "模型接口已验证" : "等待首次模型调用验证"}</strong>
                 <p>你可以让它搜索酒店、关注价格，或授权模拟预订；也可以在同一会话中继续追问。</p>
               </div>
             )}
@@ -808,7 +813,7 @@ function AgentConversation({
             {busy ? <LoaderCircle className="animate-spin" /> : <Send />}
           </Button>
         </div>
-        <div className="composer-meta"><span>{busy ? "智能体正在推理并调用工具……" : "按 Enter 发送 · Shift+Enter 换行"}</span><code>ATP 已连接</code></div>
+        <div className="composer-meta"><span>{busy ? "智能体正在执行任务……" : "按 Enter 发送 · Shift+Enter 换行"}</span><code>{chat.runtime.status === "ready" ? "运行环境已启动" : "运行环境未启动"}</code></div>
       </CardFooter>
     </Card>
   )
@@ -827,7 +832,7 @@ export default function App() {
   const [topology, setTopology] = useState<TopologyState>()
   const [packetCapture, setPacketCapture] = useState<PacketCaptureState>()
   const [liveState, setLiveState] = useState<LiveState>("offline")
-  const [statusMessage, setStatusMessage] = useState("已就绪。请向旅行智能体发送指令，或选择已有运行记录。")
+  const [statusMessage, setStatusMessage] = useState("模型接口尚未验证。首次请求成功后将显示连接状态。")
   const [statusMeta, setStatusMeta] = useState("")
 
   const sourceRef = useRef<EventSource | null>(null)

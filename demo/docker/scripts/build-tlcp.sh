@@ -3,5 +3,5 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-docker build -t atp-tlcp-gateway:latest tlcp-gateway
+docker build --build-arg "GOPROXY=${GOPROXY:-https://proxy.golang.org,direct}" -t atp-tlcp-gateway:latest tlcp-gateway
 echo "Image atp-tlcp-gateway:latest built."

@@ -81,9 +81,13 @@ _chat_state: dict[str, Any] = {
         "version": "0.80.6",
         "model": os.environ.get("LLM_API_MODEL", "qwen3.7-plus"),
         "status": "stopped",
+        "connection": "unverified",
+        "checked_at": None,
+        "connection_error": None,
     },
     "error": None,
     "updated_at": None,
+    "evidence": None,
 }
 _scenario_state: dict[str, Any] = {
     "status": "idle",
@@ -588,6 +592,22 @@ async def _watch_service_agent_audit(run_id: str, since: float, stop: asyncio.Ev
     await sweep()
 
 
+class PublicAgentError(RuntimeError):
+    def __init__(self, detail):
+        self.detail = detail if isinstance(detail, dict) else {
+            "code": "AGENT_ERROR", "message": "智能体执行失败，请重试并查看运行记录。", "retryable": False,
+        }
+        super().__init__(self.detail.get("message", "智能体执行失败"))
+
+
+def user_error(exc):
+    if isinstance(exc, PublicAgentError):
+        return exc.detail
+    if isinstance(exc, (asyncio.TimeoutError, TimeoutError)):
+        return {"code": "TASK_TIMEOUT", "message": "任务执行超时，已停止继续调用工具。已发送的付款请求不会自动重试。", "retryable": False}
+    return {"code": "AGENT_ERROR", "message": "智能体运行异常，请检查服务状态后重试。", "retryable": False}
+
+
 class PiTravelRuntime:
     """Persistent Pi Agent process used by the browser conversation."""
 
@@ -617,6 +637,7 @@ class PiTravelRuntime:
                 "ATP_PI_ADAPTER": os.environ.get("ATP_PI_ADAPTER", "/agents/pi_adapter.py"),
             })
             self.ready.clear()
+            _chat_state["runtime"].update({"connection": "unverified", "checked_at": None, "connection_error": None})
             self.stderr_tail = []
             self.process = await asyncio.create_subprocess_exec(
                 "node",
@@ -654,7 +675,15 @@ class PiTravelRuntime:
                     "model": event.get("model"),
                     "version": event.get("pi_version", "0.80.6"),
                 })
+            if event_type == "model_status":
+                _chat_state["runtime"].update({"connection": event.get("status", "unverified"), "connection_error": event.get("error")})
+                if event.get("checked_at"):
+                    _chat_state["runtime"]["checked_at"] = event["checked_at"]
             request_id = str(event.get("request_id") or "")
+            if request_id and request_id not in self.pending:
+                continue
+            if event_type == "task_progress":
+                _chat_state["evidence"] = event.get("evidence")
             if event_type == "agent_event" and request_id:
                 if event.get("event") == "tool_start":
                     _chat_state["activities"].append({
@@ -708,7 +737,7 @@ class PiTravelRuntime:
                     if event_type == "prompt_result" and event.get("status") == "completed":
                         future.set_result(event)
                     else:
-                        future.set_exception(RuntimeError(str(event.get("error") or "Pi Agent failed")))
+                        future.set_exception(PublicAgentError(event.get("error")))
         error = RuntimeError("Pi Travel Agent process closed")
         for future in self.pending.values():
             if not future.done():
@@ -742,6 +771,10 @@ class PiTravelRuntime:
         await self.process.stdin.drain()
         try:
             return await asyncio.wait_for(future, timeout=180)
+        except BaseException:
+            # Stop Node and its adapter before accepting another user turn.
+            await self.close()
+            raise
         finally:
             self.pending.pop(request_id, None)
 
@@ -762,9 +795,13 @@ class PiTravelRuntime:
             except asyncio.TimeoutError:
                 process.kill()
                 await process.wait()
-        for task in (self.stdout_task, self.stderr_task):
-            if task and not task.done():
+        tasks = [task for task in (self.stdout_task, self.stderr_task) if task and task is not asyncio.current_task()]
+        for task in tasks:
+            if not task.done():
                 task.cancel()
+        await asyncio.gather(*tasks, return_exceptions=True)
+        self.pending.clear()
+        _chat_state["runtime"]["status"] = "stopped"
         self.stdout_task = None
         self.stderr_task = None
 
@@ -773,6 +810,7 @@ _pi_travel_runtime = PiTravelRuntime()
 
 
 async def _run_chat_prompt(request_id: str, prompt: str, run_id: str) -> None:
+    started = time.monotonic()
     assistant = _chat_message(f"assistant-{request_id}")
     audit_stop = asyncio.Event()
     audit_task = asyncio.create_task(
@@ -780,12 +818,14 @@ async def _run_chat_prompt(request_id: str, prompt: str, run_id: str) -> None:
         name=f"pi-service-audit-{request_id}",
     )
     try:
-        _chat_state.update({"status": "starting", "error": None, "updated_at": _ts()})
-        await _prepare_packet_capture(run_id)
-        await _start_packet_probe(run_id, "server-payment")
-        await _emit(run_id, "chat", "user_message", narrative="User instructed the Pi Travel Agent")
-        _chat_state.update({"status": "thinking", "updated_at": _ts()})
-        result = await _pi_travel_runtime.prompt(request_id, prompt)
+        async with asyncio.timeout(180):
+            _chat_state.update({"status": "starting", "error": None, "updated_at": _ts()})
+            await _prepare_packet_capture(run_id)
+            await _start_packet_probe(run_id, "server-payment")
+            await _emit(run_id, "chat", "user_message", narrative="User instructed the Pi Travel Agent")
+            _chat_state.update({"status": "thinking", "updated_at": _ts()})
+            result = await _pi_travel_runtime.prompt(request_id, prompt)
+        _chat_state["evidence"] = result.get("evidence")
         if assistant is not None:
             assistant["content"] = str(result.get("text") or assistant.get("content") or "")
             assistant["status"] = "completed"
@@ -802,9 +842,12 @@ async def _run_chat_prompt(request_id: str, prompt: str, run_id: str) -> None:
         await _emit(run_id, "chat", "assistant_message", narrative="Pi Travel Agent completed the user turn")
         _chat_state.update({"status": "idle", "error": None, "updated_at": _ts()})
     except Exception as exc:
-        message = str(exc)
+        await _pi_travel_runtime.close()
+        detail = user_error(exc)
+        message = detail["message"]
+        _chat_state["error_code"] = detail["code"]
         if assistant is not None:
-            assistant["content"] = assistant.get("content") or f"Agent error: {message}"
+            assistant["content"] = message
             assistant["status"] = "failed"
             assistant["updated_at"] = _ts()
         _append_agent_audit(
@@ -821,6 +864,23 @@ async def _run_chat_prompt(request_id: str, prompt: str, run_id: str) -> None:
     finally:
         audit_stop.set()
         await audit_task
+        activities = [item for item in _chat_state["activities"] if item.get("request_id") == request_id]
+        for item in activities:
+            if item["status"] == "running":
+                item.update(status="cancelled", ended_at=_ts())
+        report = {
+            "run_id": run_id, "model": _chat_state["runtime"]["model"],
+            "elapsed_seconds": round(time.monotonic() - started, 2),
+            "tool_calls": len(activities),
+            "tool_counts": {name: sum(item["tool"] == name for item in activities) for name in {item["tool"] for item in activities}},
+            "status": _chat_state["status"], "error": _chat_state["error"],
+            "error_code": _chat_state.get("error_code"), "evidence": _chat_state.get("evidence"),
+            "result": assistant.get("content") if assistant else None,
+        }
+        report_path = TRACES_DIR / f"{run_id}.report.json"
+        temporary = report_path.with_suffix(".tmp")
+        temporary.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
+        temporary.replace(report_path)
         _chat_state["active_request_id"] = None
 
 
@@ -1185,7 +1245,7 @@ async def scenario_start(request: Request) -> JSONResponse:
     llm = _llm_runtime()
     if not llm["configured"]:
         return JSONResponse(
-            {"error": "LLM API key is not configured", "agent": llm},
+            {"error": "未配置模型 API Key，请填写本地 .env 后重新启动服务。", "agent": llm},
             status_code=503,
         )
 
@@ -1221,6 +1281,16 @@ async def scenario_status(request: Request) -> JSONResponse:
     return JSONResponse({"scenario": _scenario_state})
 
 
+async def run_report(request: Request) -> JSONResponse:
+    run_id = request.path_params["run_id"]
+    if not _safe_run_id(run_id):
+        return JSONResponse({"error": "运行编号无效"}, status_code=400)
+    path = TRACES_DIR / f"{run_id}.report.json"
+    if not path.is_file():
+        return JSONResponse({"error": "报告尚未生成"}, status_code=404)
+    return JSONResponse(json.loads(path.read_text(encoding="utf-8")))
+
+
 async def chat_state(request: Request) -> JSONResponse:
     return JSONResponse({"chat": _chat_state})
 
@@ -1228,10 +1298,10 @@ async def chat_state(request: Request) -> JSONResponse:
 async def chat_message(request: Request) -> JSONResponse:
     global _chat_task
     if _chat_task is not None and not _chat_task.done():
-        return JSONResponse({"error": "the Pi Travel Agent is handling another message", "chat": _chat_state}, status_code=409)
+        return JSONResponse({"error": "智能体正在处理上一条消息，请等待完成。", "chat": _chat_state}, status_code=409)
     llm = _llm_runtime()
     if not llm["configured"]:
-        return JSONResponse({"error": "LLM API key is not configured", "agent": llm}, status_code=503)
+        return JSONResponse({"error": "未配置模型 API Key，请填写本地 .env 后重新启动服务。", "agent": llm}, status_code=503)
     try:
         body = await request.json()
     except json.JSONDecodeError:
@@ -1273,6 +1343,8 @@ async def chat_message(request: Request) -> JSONResponse:
         "run_id": run_id,
         "active_request_id": request_id,
         "error": None,
+        "error_code": None,
+        "evidence": None,
         "updated_at": now,
     })
     _append_agent_audit(
@@ -1292,13 +1364,15 @@ async def chat_message(request: Request) -> JSONResponse:
 async def chat_reset(request: Request) -> JSONResponse:
     global _chat_task
     if _chat_task is not None and not _chat_task.done():
-        return JSONResponse({"error": "cannot reset while the Pi Travel Agent is running", "chat": _chat_state}, status_code=409)
+        return JSONResponse({"error": "任务执行中，暂时不能重置会话。", "chat": _chat_state}, status_code=409)
     await _pi_travel_runtime.reset()
     _chat_state.update({
         "session_id": str(uuid.uuid4()),
         "status": "idle",
         "run_id": None,
         "active_request_id": None,
+        "evidence": None,
+        "error_code": None,
         "messages": [],
         "activities": [],
         "agent_audit": [],
@@ -1363,6 +1437,7 @@ async def topology_state(request: Request) -> JSONResponse:
 
 
 routes = [
+    Route("/api/runs/{run_id}/report", run_report),
     Route("/", index, methods=["GET"]),
     Route("/api/runs", list_runs, methods=["GET"]),
     Route("/api/runs/{run_id}/trace", get_trace, methods=["GET"]),

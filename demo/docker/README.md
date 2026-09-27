@@ -19,7 +19,29 @@
 
 若 ISC DNS 镜像无法下载，可使用 `bind/Dockerfile` 构建 Debian BIND9，并通过 `compose.local-dns.yml` 覆盖 DNS 镜像，详见 Windows 说明。
 
-## 结构
+## 模型状态与任务校验
+
+本地 Pi 进程启动仅显示“运行环境已启动”。模型首次实际请求成功后才显示“模型已连接”和最近成功时间；这表示已验证的请求，不承诺之后的网络始终可用。无需刷新时重复发送付费探测。密钥、模型权限、额度、限流、网络和超时错误以中文显示，页面不展示服务商原始错误。
+
+Travel 按任务 ID、上下文 ID、请求 nonce 和发送方验证回复。搜索和付款结果由业务工具产生结构化数据；收齐三条不同事件序号的价格后才允许模拟付款。完整预订成功要求五条相关回复（搜索、三条价格、付款）和批准的模拟付款结果。只搜索或只订阅的任务明确说明尚未付款。
+
+控制器执行阶段总上限为 180 秒，Pi 默认在 175 秒停止；每次模型请求最多 60 秒，单阶段 ATP 等待最多 60 秒/12 次内部轮询，总工具调用最多 24 次。HTTP 错误不自动重试；限流提示稍后重试，避免扩大费用和付款歧义。已发送的跨域请求无法撤回，超时不等于付款一定未执行，系统不会自动重复发送付款。
+
+每次运行保存 `traces/<run_id>.report.json`，包含模型、耗时、工具次数、任务证据、结果和错误码。可通过 `/api/runs/<run_id>/report` 获取。完整回归脚本另保存报告及会话快照到 `traces/regressions`；这些运行数据不提交。
+
+离线异常回归（不读取真实密钥、不调用收费接口）：
+
+```bash
+cd agents/pi
+npm ci
+node --test guards.test.mjs runtime.test.mjs
+```
+
+默认使用 `python3`；Windows 在运行测试前将 `ATP_PYTHON` 设置为本机 Python 可执行文件路径。仓库根目录安装演示依赖 `pip install docker` 后，可执行 `python -m pytest tests/test_demo_model_runtime.py` 验证控制器取消、状态与报告。
+
+真实模型完整回归：`bash scripts/test-demo-controller.sh`。脚本会重置演示会话并产生模型调用费用，验证五条关联回复、最低价格、模拟付款结果和 TLCP 抓包证据。测试超时 240 秒包含结果/抓包收集时间，不改变单任务 180 秒执行限制。
+
+## 代码结构
 
 - `agents/pi/runtime.mjs`：四个角色的模型会话与工具。
 - `agents/pi_adapter.py`：模型工具和 Python ATP SDK 的桥接。

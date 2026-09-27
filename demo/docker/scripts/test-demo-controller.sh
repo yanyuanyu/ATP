@@ -6,7 +6,19 @@ cd "$(dirname "$0")/.."
 DEMO_URL="${ATP_DEMO_URL:-http://localhost:8080}"
 DEADLINE="${ATP_DEMO_TEST_TIMEOUT:-240}"
 TMP_DIR="$(mktemp -d)"
-trap 'rm -rf "$TMP_DIR"' EXIT
+REPORT_DIR="${ATP_DEMO_REPORT_DIR:-traces/regressions}"
+mkdir -p "$REPORT_DIR"
+RUN_ID=""
+save_report() {
+  result=$?
+  if [ -n "$RUN_ID" ]; then
+    curl -fsS "$DEMO_URL/api/runs/$RUN_ID/report" > "$REPORT_DIR/$RUN_ID.json" || true
+    if [ -f "$TMP_DIR/chat.json" ]; then cp "$TMP_DIR/chat.json" "$REPORT_DIR/$RUN_ID.chat.json"; fi
+    echo "Report: $REPORT_DIR/$RUN_ID.json (test exit=$result)"
+  fi
+  rm -rf "$TMP_DIR"
+}
+trap save_report EXIT
 
 echo '=== Demo Controller smoke checks ==='
 INDEX_HTML="$(curl -fsS "$DEMO_URL/")"
@@ -26,7 +38,9 @@ curl -fsS "$DEMO_URL/api/state/topology" | jq -e '
 ' >/dev/null
 
 echo '=== Start a clean Pi conversation ==='
+docker compose stop agent-search agent-rates agent-bill >/dev/null
 curl -fsS -X POST "$DEMO_URL/api/control/soft-reset" >/dev/null
+docker compose start agent-search agent-rates agent-bill >/dev/null
 curl -fsS -X POST "$DEMO_URL/api/chat/reset" | jq -e '
   .chat.status == "idle" and
   .chat.runtime.name == "Pi" and
@@ -51,7 +65,7 @@ while true; do
     break
   fi
   if [ "$chat_status" = 'failed' ]; then
-    jq . "$TMP_DIR/chat.json"
+    jq '{status: .chat.status, error: .chat.error, evidence: .chat.evidence}' "$TMP_DIR/chat.json"
     exit 1
   fi
   if [ $(( $(date +%s) - started_at )) -ge "$DEADLINE" ]; then
@@ -67,6 +81,14 @@ jq -e --arg run_id "$RUN_ID" '
   .chat.run_id == $run_id and
   .chat.runtime.name == "Pi" and
   .chat.runtime.version == "0.80.6" and
+  .chat.runtime.connection == "connected" and
+  .chat.evidence.search_received == true and
+  .chat.evidence.price_count == 3 and
+  .chat.evidence.payment_received == true and
+  .chat.evidence.payment_approved == true and
+  (.chat.evidence.received_nonces | unique | length) == 5 and
+  .chat.evidence.payment.total == 340 and
+  (.chat.activities | length <= 24) and
   .chat.messages[-1].role == "assistant" and
   .chat.messages[-1].status == "completed" and
   (.chat.messages[-1].content | test("ParisGarden"; "i")) and
@@ -134,4 +156,4 @@ jq -e '
   ([.signals[] | select(has("body") or has("payload"))] | length == 0)
 ' "$TMP_DIR/packets.json" >/dev/null
 
-echo "PASS: $RUN_ID completed through four Pi sessions with $(jq -r '.chat.activities | length' "$TMP_DIR/chat.json") Travel tool calls and $(jq -r '.count' "$TMP_DIR/packets.json") packet signals"
+echo "PASS: $RUN_ID completed through four Pi sessions using $(jq -r '.chat.runtime.model' "$TMP_DIR/chat.json") with $(jq -r '.chat.activities | length' "$TMP_DIR/chat.json") Travel tool calls and $(jq -r '.count' "$TMP_DIR/packets.json") packet signals"

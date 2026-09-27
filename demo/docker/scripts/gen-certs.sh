@@ -55,8 +55,9 @@ rm -f "$CERT_DIR"/*.csr "$CERT_DIR"/*.srl
 # 2. SM2 certificate authority and TLCP dual certificates. Generate them
 # with the same national-crypto library used by the gateways so SM2
 # certificate signatures have identical encoding and user-ID semantics.
+CERT_HOST_DIR="$(cd "$CERT_DIR" && (pwd -W 2>/dev/null || pwd))"
 docker run --rm --user 0:0 \
-  -v "$(pwd -W)/$CERT_DIR:/certs" \
+  -v "$CERT_HOST_DIR:/certs" \
   atp-tlcp-gateway:latest certgen /certs
 
 echo "Certificates generated in $CERT_DIR"

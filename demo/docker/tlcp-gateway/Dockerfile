@@ -2,6 +2,7 @@ FROM golang:1.24-bookworm AS build
 
 WORKDIR /src
 COPY go.mod go.sum ./
+ARG GOPROXY=https://proxy.golang.org,direct
 RUN go mod download
 COPY main.go ./
 RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/atp-tlcp-gateway .
