@@ -37,6 +37,9 @@ PACKETS_DIR.mkdir(parents=True, exist_ok=True)
 
 CONTAINERS = {
     "dns": "hack-dns",
+    "probe-tlcp-family": "hack-probe-tlcp-family",
+    "probe-tlcp-hotel": "hack-probe-tlcp-hotel",
+    "probe-tlcp-payment": "hack-probe-tlcp-payment",
     "server-family": "hack-server-family",
     "server-hotel": "hack-server-hotel",
     "server-payment": "hack-server-payment",
@@ -316,6 +319,9 @@ async def _prepare_packet_capture(run_id: str) -> None:
     await asyncio.gather(
         _start_packet_probe(run_id, "server-family"),
         _start_packet_probe(run_id, "server-hotel"),
+        _start_packet_probe(run_id, "probe-tlcp-family"),
+        _start_packet_probe(run_id, "probe-tlcp-hotel"),
+        _start_packet_probe(run_id, "probe-tlcp-payment"),
     )
     await asyncio.sleep(0.5)
 

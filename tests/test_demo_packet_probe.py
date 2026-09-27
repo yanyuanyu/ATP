@@ -1,0 +1,39 @@
+"""Unit tests for the Docker demo's packet-header classifier."""
+
+from __future__ import annotations
+
+import importlib.util
+from pathlib import Path
+
+
+PROBE_PATH = Path(__file__).parents[1] / "demo" / "docker" / "demo" / "packet_probe.py"
+SPEC = importlib.util.spec_from_file_location("demo_packet_probe", PROBE_PATH)
+assert SPEC is not None and SPEC.loader is not None
+packet_probe = importlib.util.module_from_spec(SPEC)
+SPEC.loader.exec_module(packet_probe)
+
+
+def test_tlcp_gateways_are_cross_domain() -> None:
+    assert packet_probe.packet_scope("172.28.1.2", "172.28.2.2") == "cross_domain"
+    assert packet_probe.packet_scope("172.28.3.2", "172.28.1.2") == "cross_domain"
+
+
+def test_local_gateway_backend_link_is_not_cross_domain() -> None:
+    assert packet_probe.packet_scope("172.28.1.2", "172.28.1.1") == "edge_agent"
+
+
+def test_tlcp_handshake_and_application_records_are_recognized() -> None:
+    assert packet_probe.classify_secure_record(b"\x16\x01\x01\x00\x00") == (
+        "tls_handshake",
+        "TLCPv1.1",
+        "1.1",
+    )
+    assert packet_probe.classify_secure_record(b"\x17\x01\x01\x00\x00") == (
+        "tls_appdata",
+        "TLCPv1.1",
+        "1.1",
+    )
+
+
+def test_unknown_secure_record_version_is_rejected() -> None:
+    assert packet_probe.classify_secure_record(b"\x16\x02\x00\x00\x00") is None

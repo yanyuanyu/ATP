@@ -1,9 +1,10 @@
 """Minimal AF_PACKET probe for the local ATP Docker demo.
 
-The probe runs inside an ATP server container through ``docker exec`` and
-emits low-volume JSONL evidence. It intentionally records only DNS traffic
-from ATP servers and cross-domain TCP/7443 traffic; payloads are never stored.
-TLS records are classified by their public record header only.
+The probe runs inside an ATP server container or a sidecar sharing a TLCP
+gateway network namespace through docker exec and emits low-volume JSONL
+evidence. It intentionally records only DNS traffic plus ATP TLS/TLCP traffic;
+payloads are never stored. Secure records are classified by their public
+record header only.
 """
 
 from __future__ import annotations
@@ -21,7 +22,13 @@ SERVER_IPS = {
     "172.28.2.1": "server-hotel",
     "172.28.3.1": "server-payment",
 }
-NODE_IPS = {**SERVER_IPS, "172.28.0.10": "dns"}
+TLCP_GATEWAY_IPS = {
+    "172.28.1.2": "tlcp-family",
+    "172.28.2.2": "tlcp-hotel",
+    "172.28.3.2": "tlcp-payment",
+}
+ATP_NODE_IPS = {**SERVER_IPS, **TLCP_GATEWAY_IPS}
+NODE_IPS = {**ATP_NODE_IPS, "172.28.0.10": "dns"}
 NODE_IPS.update({
     "172.28.2.101": "search@hotel.test",
     "172.28.2.103": "rates@hotel.test",
@@ -31,6 +38,9 @@ NODE_IPS.update({
     "172.28.1.106": "travel@family.test",
 })
 QTYPE_NAMES = {1: "A", 16: "TXT", 28: "AAAA", 64: "SVCB", 65: "HTTPS"}
+SECURE_TRANSPORT_PORTS = {7443, 8443}
+TLS_RECORD_VERSIONS = {(3, 0), (3, 1), (3, 2), (3, 3), (3, 4)}
+TLCP_RECORD_VERSION = (1, 1)
 
 
 def iso_ts() -> str:
@@ -88,6 +98,35 @@ def node_for(ip: str, peer: str) -> str:
     if peer_server == "server-payment":
         return "bill@payment.test"
     return ip
+
+
+def packet_scope(src: str, dst: str) -> str:
+    """Classify server-to-server and TLCP gateway-to-gateway traffic."""
+    if src in SERVER_IPS and dst in SERVER_IPS:
+        return "cross_domain"
+    if src in TLCP_GATEWAY_IPS and dst in TLCP_GATEWAY_IPS and src != dst:
+        return "cross_domain"
+    return "edge_agent"
+
+
+def classify_secure_record(payload: bytes) -> tuple[str, str, str] | None:
+    """Return evidence, protocol and public record version for TLS/TLCP."""
+    if len(payload) < 5:
+        return None
+    version = (payload[1], payload[2])
+    if version == TLCP_RECORD_VERSION:
+        protocol = "TLCPv1.1"
+    elif version in TLS_RECORD_VERSIONS:
+        protocol = "TLS"
+    else:
+        return None
+    if payload[0] == 22:
+        evidence = "tls_handshake"
+    elif payload[0] == 23:
+        evidence = "tls_appdata"
+    else:
+        return None
+    return evidence, protocol, f"{version[0]}.{version[1]}"
 
 
 def parse_ipv4(packet: bytes) -> tuple[str, str, int, int] | None:
@@ -162,7 +201,9 @@ def main() -> int:
             if protocol != socket.IPPROTO_TCP or len(packet) < offset + 20:
                 continue
             src_port, dst_port = struct.unpack("!HH", packet[offset:offset + 4])
-            if 7443 not in {src_port, dst_port} or not ({src, dst} & set(SERVER_IPS)):
+            if not ({src_port, dst_port} & SECURE_TRANSPORT_PORTS):
+                continue
+            if not ({src, dst} & set(ATP_NODE_IPS)):
                 continue
             tcp_header_length = ((packet[offset + 12] >> 4) & 0x0F) * 4
             if tcp_header_length < 20 or len(packet) < offset + tcp_header_length:
@@ -177,31 +218,29 @@ def main() -> int:
                 "dst_node": node_for(dst, src),
                 "src_port": src_port,
                 "dst_port": dst_port,
-                "scope": "cross_domain" if src in SERVER_IPS and dst in SERVER_IPS else "edge_agent",
+                "scope": packet_scope(src, dst),
             }
             flow = f"{src}:{src_port}>{dst}:{dst_port}"
             if flags & 0x02 and not flags & 0x10 and allowed(f"syn:{flow}", 0.8):
                 emit(sensor, "tcp_connect", tcp_flags="SYN", bytes=0, **common)
             if flags & 0x04 and allowed(f"rst:{flow}", 0.8):
                 emit(sensor, "tcp_reset", tcp_flags="RST", bytes=0, **common)
-            if len(payload) < 5 or payload[1] != 0x03:
+            secure_record = classify_secure_record(payload)
+            if secure_record is None:
                 continue
-            content_type = payload[0]
-            if content_type == 22:
-                evidence = "tls_handshake"
+            evidence, secure_transport, record_version = secure_record
+            if evidence == "tls_handshake":
                 interval = 0.45
-            elif content_type == 23:
-                evidence = "tls_appdata"
-                interval = 2.5 if common["scope"] == "edge_agent" else 0.65
             else:
-                continue
+                interval = 2.5 if common["scope"] == "edge_agent" else 0.65
             key = f"{evidence}:{flow}"
             if allowed(key, interval):
                 emit(
                     sensor,
                     evidence,
-                    tls_record_type=content_type,
-                    tls_legacy_version=f"{payload[1]}.{payload[2]}",
+                    tls_record_type=payload[0],
+                    tls_legacy_version=record_version,
+                    secure_transport=secure_transport,
                     bytes=len(payload),
                     **common,
                 )

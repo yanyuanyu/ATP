@@ -79,6 +79,40 @@ services:
     volumes:
       - ./certs:/tlcp:ro
 
+  # Packet probes share each TLCP gateway's network namespace. The gateway
+  # image remains a minimal, unprivileged scratch image; these sidecars provide
+  # Python and CAP_NET_RAW solely for packet-header evidence.
+
+  probe-tlcp-family:
+    image: atp-hackthon:latest
+    container_name: hack-probe-tlcp-family
+    network_mode: "service:tlcp-family"
+    cap_add:
+      - NET_RAW
+    command: ["sleep", "infinity"]
+    depends_on:
+      - tlcp-family
+
+  probe-tlcp-hotel:
+    image: atp-hackthon:latest
+    container_name: hack-probe-tlcp-hotel
+    network_mode: "service:tlcp-hotel"
+    cap_add:
+      - NET_RAW
+    command: ["sleep", "infinity"]
+    depends_on:
+      - tlcp-hotel
+
+  probe-tlcp-payment:
+    image: atp-hackthon:latest
+    container_name: hack-probe-tlcp-payment
+    network_mode: "service:tlcp-payment"
+    cap_add:
+      - NET_RAW
+    command: ["sleep", "infinity"]
+    depends_on:
+      - tlcp-payment
+
   # ── family.test ──────────────────────────────────────────────────────────
 
   server-family:

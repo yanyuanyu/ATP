@@ -128,6 +128,8 @@ jq -e '
   (.source == "AF_PACKET") and
   (.count >= 30) and
   ([.signals[] | select(.evidence == "tls_handshake" and .scope == "cross_domain")] | length >= 1) and
+  ([.signals[] | select(.evidence == "tls_handshake" and .scope == "cross_domain" and .secure_transport == "TLCPv1.1" and (.src_port == 8443 or .dst_port == 8443))] | length >= 1) and
+  ([.signals[] | select(.evidence == "tls_appdata" and .scope == "cross_domain" and .secure_transport == "TLCPv1.1")] | length >= 1) and
   ([.signals[] | select(.qname == "_atp.hotel.test")] | length >= 1) and
   ([.signals[] | select(has("body") or has("payload"))] | length == 0)
 ' "$TMP_DIR/packets.json" >/dev/null
