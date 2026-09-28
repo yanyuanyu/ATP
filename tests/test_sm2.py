@@ -15,7 +15,11 @@ def test_sm3_official_abc_vector():
     )
 
 
-@pytest.mark.parametrize("data", [b"", b"abc", bytes(range(256)) * 256])
+@pytest.mark.parametrize(
+    "data",
+    [b"", b"abc", bytes(range(256)) * 256],
+    ids=["empty", "abc", "64k-pattern"],
+)
 def test_native_sm3_matches_portable_fallback(data):
     native = sm3_digest(data)
     with patch("atp.security.sm2.hashlib.new", side_effect=ValueError("SM3 unavailable")):

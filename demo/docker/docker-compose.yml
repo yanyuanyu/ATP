@@ -143,6 +143,9 @@ services:
     dns: 172.28.1.10
     environment:
       - SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt
+      # Query the real BIND9 service instead of Docker's 127.0.0.11 stub so
+      # SVCB/ATS/ATK protocol evidence is visible to the packet probe.
+      - ATP_DNS_NAMESERVERS=172.28.1.10
       - ATP_TRANSPORT_MODE=${ATP_TRANSPORT_MODE:-tlcp}
       - ATP_TLCP_GATEWAY_URL=http://tlcp-family:9080
     volumes:
@@ -173,6 +176,7 @@ services:
     dns: 172.28.2.10
     environment:
       - SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt
+      - ATP_DNS_NAMESERVERS=172.28.2.10
       - ATP_TRANSPORT_MODE=${ATP_TRANSPORT_MODE:-tlcp}
       - ATP_TLCP_GATEWAY_URL=http://tlcp-hotel:9080
     volumes:
@@ -203,6 +207,7 @@ services:
     dns: 172.28.3.10
     environment:
       - SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt
+      - ATP_DNS_NAMESERVERS=172.28.3.10
       - ATP_TRANSPORT_MODE=${ATP_TRANSPORT_MODE:-tlcp}
       - ATP_TLCP_GATEWAY_URL=http://tlcp-payment:9080
     volumes:

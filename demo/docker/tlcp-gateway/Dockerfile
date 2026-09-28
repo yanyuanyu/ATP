@@ -1,4 +1,5 @@
-FROM golang:1.24-bookworm AS build
+ARG GOLANG_IMAGE=golang:1.24-bookworm
+FROM ${GOLANG_IMAGE} AS build
 
 WORKDIR /src
 COPY go.mod go.sum ./

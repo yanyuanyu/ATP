@@ -22,6 +22,12 @@ SERVER_IPS = {
     "172.28.2.1": "server-hotel",
     "172.28.3.1": "server-payment",
 }
+DNS_SERVER_IPS = {
+    "172.28.0.10",
+    "172.28.1.10",
+    "172.28.2.10",
+    "172.28.3.10",
+}
 TLCP_GATEWAY_IPS = {
     "172.28.0.11": "tlcp-family",
     "172.28.0.12": "tlcp-hotel",
@@ -31,7 +37,7 @@ TLCP_GATEWAY_IPS = {
     "172.28.3.2": "tlcp-payment",
 }
 ATP_NODE_IPS = {**SERVER_IPS, **TLCP_GATEWAY_IPS}
-NODE_IPS = {**ATP_NODE_IPS, "172.28.0.10": "dns"}
+NODE_IPS = {**ATP_NODE_IPS, **{address: "dns" for address in DNS_SERVER_IPS}}
 NODE_IPS.update({
     "172.28.1.254": "travel@family.test",
     "172.28.2.254": "travel@family.test",
@@ -91,6 +97,11 @@ def dns_evidence(qname: str, qtype: int) -> str:
     if qname.startswith("_atp.") and qtype in {64, 65}:
         return "svcb_lookup"
     return "dns_query"
+
+
+def is_protocol_dns_query(src: str, dst: str, dst_port: int) -> bool:
+    """Return whether a packet is a real ATP-server query to demo BIND9."""
+    return dst_port == 53 and src in SERVER_IPS and dst in DNS_SERVER_IPS
 
 
 def node_for(ip: str, peer: str) -> str:
@@ -178,7 +189,7 @@ def main() -> int:
 
             if protocol == socket.IPPROTO_UDP and len(packet) >= offset + 8:
                 src_port, dst_port, udp_length = struct.unpack("!HHH", packet[offset:offset + 6])
-                if dst_port != 53 or src not in SERVER_IPS or dst != "172.28.0.10":
+                if not is_protocol_dns_query(src, dst, dst_port):
                     continue
                 question = parse_dns_question(packet[offset + 8:offset + max(8, udp_length)])
                 if not question:

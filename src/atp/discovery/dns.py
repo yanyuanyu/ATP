@@ -23,6 +23,19 @@ class ServerInfo:
     ip_addresses: list[str] = field(default_factory=list)
 
 
+def parse_nameservers(value: str | None) -> list[str] | None:
+    """Parse a comma-separated authoritative resolver override.
+
+    Container runtimes commonly expose an embedded DNS stub in
+    ``/etc/resolv.conf``. ATP deployments that need protocol-level DNS
+    observability can point dnspython at their actual resolver instead.
+    """
+    if not value:
+        return None
+    nameservers = [item.strip() for item in value.split(",") if item.strip()]
+    return nameservers or None
+
+
 class BaseDNSResolver:
     """Abstract base for DNS resolution."""
 

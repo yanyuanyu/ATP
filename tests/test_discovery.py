@@ -6,11 +6,20 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from atp.discovery.dns import BaseDNSResolver, ServerInfo
+from atp.discovery.dns import BaseDNSResolver, ServerInfo, parse_nameservers
 from atp.discovery.local import CompositeResolver, LocalResolver
 
 
 # ── Fixtures ────────────────────────────────────────────────────────────────
+
+
+def test_parse_nameservers() -> None:
+    assert parse_nameservers(None) is None
+    assert parse_nameservers("") is None
+    assert parse_nameservers("172.28.1.10, 172.28.0.10") == [
+        "172.28.1.10",
+        "172.28.0.10",
+    ]
 
 
 @pytest.fixture

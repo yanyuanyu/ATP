@@ -49,7 +49,7 @@ ATS 仅允许三个接收网关的域内地址（172.28.1.2、172.28.2.2、172.2
 
 仓库中的 DNS 公钥是演示样例；每台机器首次启动后必须执行更新脚本，使其匹配本机密钥。服务 Agent 在域服务器短暂断线时自动重试接收，保留本进程的接收游标。
 
-若 ISC DNS 镜像无法下载，可使用 `bind/Dockerfile` 构建 Debian BIND9，并通过 `compose.local-dns.yml` 覆盖 DNS 镜像，详见 Windows 说明。
+若 ISC DNS 镜像无法下载，可使用 `bind/Dockerfile` 构建 Debian BIND9，并通过 `compose.local-dns.yml` 覆盖 DNS 镜像，详见 Windows 说明。若 Docker Hub 基础镜像不可达，可在运行 `scripts/build-tlcp.sh` 前将 `GOLANG_IMAGE` 设为兼容的 Go 1.24 Bookworm 镜像；默认仍使用官方 `golang:1.24-bookworm`。
 
 ## 模型状态与任务校验
 

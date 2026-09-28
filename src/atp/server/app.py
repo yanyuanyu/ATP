@@ -16,7 +16,7 @@ from atp.security.ats import ATSVerifier
 from atp.security.atk import ATKVerifier
 from atp.security.replay import ReplayGuard
 from atp.security.tls import TLSConfig
-from atp.discovery.dns import DNSResolver
+from atp.discovery.dns import DNSResolver, parse_nameservers
 from atp.discovery.local import LocalResolver, CompositeResolver
 from atp.storage.agents import AgentStore
 from atp.storage.config import ConfigStorage
@@ -61,7 +61,9 @@ class ATPServer:
         self.agent_store.init_db()
 
         # DNS resolver
-        dns_resolver = DNSResolver()
+        dns_resolver = DNSResolver(
+            parse_nameservers(os.environ.get("ATP_DNS_NAMESERVERS"))
+        )
         if self.config.local_mode:
             local = LocalResolver(
                 peers_path=self.config.peers_file,

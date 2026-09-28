@@ -40,3 +40,15 @@ def test_tlcp_handshake_and_application_records_are_recognized() -> None:
 
 def test_unknown_secure_record_version_is_rejected() -> None:
     assert packet_probe.classify_secure_record(b"\x16\x02\x00\x00\x00") is None
+
+
+def test_protocol_dns_queries_accept_each_domain_bind_address() -> None:
+    assert packet_probe.is_protocol_dns_query("172.28.1.1", "172.28.1.10", 53)
+    assert packet_probe.is_protocol_dns_query("172.28.2.1", "172.28.2.10", 53)
+    assert packet_probe.is_protocol_dns_query("172.28.3.1", "172.28.3.10", 53)
+
+
+def test_protocol_dns_queries_reject_stub_and_unrelated_traffic() -> None:
+    assert not packet_probe.is_protocol_dns_query("172.28.1.1", "127.0.0.11", 53)
+    assert not packet_probe.is_protocol_dns_query("172.28.2.101", "172.28.2.10", 53)
+    assert not packet_probe.is_protocol_dns_query("172.28.1.1", "172.28.1.10", 853)
