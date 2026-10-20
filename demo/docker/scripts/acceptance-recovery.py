@@ -77,7 +77,8 @@ def main():
             rc,out=docker('exec','hack-server-hotel','python','-c',f"import httpx,json; r=httpx.get('https://server-hotel.hotel.test:7443/.well-known/atp/v1/messages',params={{'limit':100}},auth=('{mailbox}','acceptance-local-test')); print(json.dumps(any(x['nonce']=='{nonce}' and x['payload'].get('body')=='natural-offline-recovery' for x in r.json().get('messages',[]))))",check=False)
             if rc==0 and out=='true': found=True;break
             time.sleep(.5)
-        report['queued_recovery']={'delivered_and_decrypted':found,'seconds_from_start_command':time.monotonic()-t,'initial_queue_state':queued,'retry_timer_modified':False}
+        matching_count=int(py('hack-server-hotel',f"import sqlite3; c=sqlite3.connect('/root/.atp/data/messages.db'); print(c.execute('SELECT COUNT(*) FROM messages WHERE nonce=?',('{nonce}',)).fetchone()[0])")) if found else 0
+        report['queued_recovery']={'delivered_and_decrypted':found,'seconds_from_start_command':time.monotonic()-t,'nonce':nonce,'recipient':mailbox,'matching_record_count':matching_count,'no_duplicate_delivery':matching_count==1,'initial_queue_state':queued,'retry_timer_modified':False}
         print(json.dumps(report['queued_recovery']),flush=True)
     finally:
         docker('start','hack-server-hotel')

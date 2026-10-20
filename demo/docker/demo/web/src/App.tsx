@@ -233,6 +233,7 @@ function agentStatus(controller: ControllerState, chat: ChatState) {
 }
 
 function secureLabel(signal?: PacketSignal) {
+  if (signal?.scope === "cross_domain") return TLCP_LABEL
   if (signal?.secure_transport?.startsWith("TLCP")) return TLCP_LABEL
   if (signal?.secure_transport === "TLS") return "TLS"
   return "加密传输（协议未确认）"
@@ -514,6 +515,14 @@ function evidenceLabel(signal?: PacketSignal) {
   return signal.evidence.replaceAll("_", " ")
 }
 
+function latestCrossDomainPacket(capture?: PacketCaptureState) {
+  const packets = capture?.signals.filter((signal) => !["probe_ready", "probe_complete"].includes(signal.evidence)) || []
+  const crossDomainPackets = packets.filter((signal) => signal.scope === "cross_domain")
+  return crossDomainPackets
+    .filter((signal) => signal.evidence === "tls_appdata" && signal.secure_transport?.startsWith("TLCP"))
+    .at(-1) || crossDomainPackets.at(-1) || packets.at(-1)
+}
+
 function CaptureEvidenceRail({ capture }: { capture?: PacketCaptureState }) {
   const summary = capture?.summary
   const items = [
@@ -611,9 +620,7 @@ function TopologyDiagram({ topology, capture }: { topology?: TopologyState; capt
 }
 
 function TopologyEvidence({ capture }: { capture?: PacketCaptureState }) {
-  const latestPacket = capture?.signals
-    .filter((signal) => !["probe_ready", "probe_complete"].includes(signal.evidence))
-    .at(-1)
+  const latestPacket = latestCrossDomainPacket(capture)
 
   return (
     <div className="topology-evidence-panel">
@@ -625,7 +632,7 @@ function TopologyEvidence({ capture }: { capture?: PacketCaptureState }) {
 
 function ProtocolPanel({ capture }: { capture?: PacketCaptureState }) {
   const protocol = protocolStages(undefined, capture)
-  const latestPacket = capture?.signals.filter((signal) => !["probe_ready", "probe_complete"].includes(signal.evidence)).at(-1)
+  const latestPacket = latestCrossDomainPacket(capture)
   const stageIcon = (stage: ProtocolStage) => {
     if (stage.state === "pass") return <Check className="size-3" />
     if (stage.state === "fail") return <TriangleAlert className="size-3" />
