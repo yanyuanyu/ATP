@@ -61,6 +61,56 @@ def _aad() -> bytes:
     )
 
 
+def test_sm2_key_wrapping_does_not_use_gmssl_default_random():
+    recipient = SM2PrivateKey.generate()
+    with patch("gmssl.func.random_hex", side_effect=AssertionError("insecure RNG called")):
+        envelope = encrypt_payload({"body": "secure nonce"}, recipient_public_key=recipient.public_key(), aad=_aad())
+        assert decrypt_payload(envelope, recipient_private_key=recipient, aad=_aad()) == {"body": "secure nonce"}
+
+
+def test_sm2_wrapped_key_c3_tamper_is_rejected():
+    recipient = SM2PrivateKey.generate()
+    envelope = encrypt_payload({"body": "secret"}, recipient_public_key=recipient.public_key(), aad=_aad())
+    wrapped = bytearray(base64.b64decode(envelope["wrapped_key"]))
+    wrapped[-1] ^= 1
+    envelope["wrapped_key"] = base64.b64encode(wrapped).decode("ascii")
+    with pytest.raises(SM4PayloadError, match="unwrap"):
+        decrypt_payload(envelope, recipient_private_key=recipient, aad=_aad())
+
+
+def test_sm2_key_wrapping_retries_with_fresh_scalar_after_zero_kdf():
+    from gmssl import sm3
+    import secrets
+    recipient = SM2PrivateKey.generate()
+    original_kdf = sm3.sm3_kdf
+    calls = []
+    def kdf(point, size):
+        calls.append(point)
+        return "00" * size if len(calls) == 1 else original_kdf(point, size)
+    with patch("gmssl.sm3.sm3_kdf", side_effect=kdf), patch("atp.security.sm2.secrets.randbelow", wraps=secrets.randbelow) as rng:
+        envelope = encrypt_payload({"body": "retry"}, recipient_public_key=recipient.public_key(), aad=_aad())
+    assert rng.call_count == 2
+    assert calls[0] != calls[1]
+    assert decrypt_payload(envelope, recipient_private_key=recipient, aad=_aad()) == {"body": "retry"}
+
+
+def test_sm2_key_wrapping_fails_after_bounded_zero_kdf_retries():
+    recipient = SM2PrivateKey.generate()
+    with patch("gmssl.sm3.sm3_kdf", return_value="00" * 16) as kdf:
+        with pytest.raises(SM4PayloadError, match="after retries"):
+            encrypt_payload({"body": "retry"}, recipient_public_key=recipient.public_key(), aad=_aad())
+    assert kdf.call_count == 8
+
+
+@pytest.mark.parametrize("size", [1, 95, 111, 113])
+def test_sm4_rejects_invalid_sm2_wrapped_key_length(size):
+    recipient = SM2PrivateKey.generate()
+    envelope = encrypt_payload({"body": "key size"}, recipient_public_key=recipient.public_key(), aad=_aad())
+    envelope["wrapped_key"] = base64.b64encode(b"\x01" * size).decode("ascii")
+    with pytest.raises(SM4PayloadError, match="wrapped-key length"):
+        decrypt_payload(envelope, recipient_private_key=recipient, aad=_aad())
+
+
 def test_sm4_round_trip_with_sm2_wrapped_key():
     recipient = SM2PrivateKey.generate()
     payload = {"subject": "search", "body": "巴黎住两晚", "nested": {"n": 2}}

@@ -22,6 +22,34 @@ def controller(tmp_path, monkeypatch):
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize('finishes', [True, False])
+async def test_service_audit_drains_late_response_and_has_a_deadline(controller, monkeypatch, finishes):
+    controller._chat_state.update(run_id='audit-run', agent_audit=[])
+    stop = asyncio.Event()
+    stop.set()
+    sweeps = 0
+    inbound = {'ts': 'one', 'role': 'bill', 'agent_id': 'bill@payment.test',
+               'request_id': 'delivery', 'type': 'agent_event', 'event': 'atp_input'}
+    completed = {**inbound, 'ts': 'two', 'type': 'prompt_result', 'status': 'completed', 'text': 'done'}
+
+    def logs(service, since):
+        nonlocal sweeps
+        if service != 'agent-bill':
+            return []
+        sweeps += 1
+        return [inbound, completed] if finishes and sweeps >= 2 else [inbound]
+
+    monkeypatch.setattr(controller, '_service_agent_log_events_sync', logs)
+    await asyncio.wait_for(
+        controller._watch_service_agent_audit('audit-run', 0, stop, drain_seconds=0.05),
+        timeout=1,
+    )
+    rows = controller._chat_state['agent_audit']
+    assert [row['kind'] for row in rows] == (['atp_input', 'response'] if finishes else ['atp_input'])
+    assert sweeps >= 2
+
+
+@pytest.mark.asyncio
 async def test_timeout_closes_runtime_and_removes_pending(controller, monkeypatch):
     runtime = controller.PiTravelRuntime()
     runtime.ensure_started = AsyncMock()

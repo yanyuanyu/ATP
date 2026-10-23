@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import secrets
 import hashlib
+import hmac
 from dataclasses import dataclass
 
 from gmssl import sm2, sm3
@@ -80,6 +81,26 @@ class SM2PublicKey:
     def raw_bytes(self) -> bytes:
         return b"\x04" + bytes.fromhex(self.public_key_hex)
 
+    def encrypt(self, data: bytes) -> bytes | None:
+        """Encrypt with a fresh CSPRNG scalar, retaining gmssl's C1||C2||C3 format.
+
+        Only curve arithmetic and the SM3 KDF are delegated to gmssl: its
+        default encrypt() chooses the ephemeral scalar with random.choice.
+        None requests a fresh-scalar retry if the KDF output is all zero.
+        """
+        if not isinstance(data, bytes) or not data:
+            raise ValueError("SM2 plaintext must be non-empty bytes")
+        cipher = sm2.CryptSM2(private_key="", public_key=self.public_key_hex)
+        scalar = int(_secure_scalar_hex(), 16)
+        c1 = bytes.fromhex(cipher._kg(scalar, _CURVE["g"]))
+        shared = cipher._kg(scalar, self.public_key_hex)
+        mask = bytes.fromhex(sm3.sm3_kdf(shared.encode("ascii"), len(data)))
+        if not any(mask):
+            return None
+        c2 = bytes(a ^ b for a, b in zip(data, mask))
+        c3 = sm3_digest(bytes.fromhex(shared[:64]) + data + bytes.fromhex(shared[64:]))
+        return c1 + c2 + c3
+
     def verify(self, signature: bytes, data: bytes) -> bool:
         verifier = sm2.CryptSM2(
             private_key="",
@@ -140,6 +161,24 @@ class SM2PrivateKey:
 
     def public_key(self) -> SM2PublicKey:
         return SM2PublicKey(self.public_key_hex)
+
+    def decrypt(self, ciphertext: bytes) -> bytes:
+        """Decrypt C1||C2||C3, validating the point, KDF and C3 integrity tag."""
+        if not isinstance(ciphertext, bytes) or len(ciphertext) <= 96:
+            raise ValueError("invalid SM2 ciphertext length")
+        ephemeral = SM2PublicKey(ciphertext[:64].hex())
+        c2, c3 = ciphertext[64:-32], ciphertext[-32:]
+        cipher = sm2.CryptSM2(private_key=self.private_key_hex, public_key="")
+        shared = cipher._kg(int(self.private_key_hex, 16), ephemeral.public_key_hex)
+        mask = bytes.fromhex(sm3.sm3_kdf(shared.encode("ascii"), len(c2)))
+        if not any(mask):
+            raise ValueError("invalid SM2 all-zero KDF output")
+        plaintext = bytes(a ^ b for a, b in zip(c2, mask))
+        expected = sm3_digest(bytes.fromhex(shared[:64]) + plaintext + bytes.fromhex(shared[64:]))
+        # gmssl.decrypt computes this digest but does not compare it with C3.
+        if not hmac.compare_digest(c3, expected):
+            raise ValueError("SM2 ciphertext integrity check failed")
+        return plaintext
 
     def sign(self, data: bytes) -> bytes:
         signer = sm2.CryptSM2(

@@ -566,9 +566,10 @@ def _record_service_audit_event(run_id: str, event: dict[str, Any]) -> None:
         }, request_id=request_id, ts=ts)
 
 
-async def _watch_service_agent_audit(run_id: str, since: float, stop: asyncio.Event) -> None:
+async def _watch_service_agent_audit(run_id: str, since: float, stop: asyncio.Event, *, drain_seconds: float = 60.0) -> None:
     """Tail structured stdout from the three independent Pi service sessions."""
     seen: set[str] = set()
+    pending: set[tuple[str, str]] = set()
 
     async def sweep() -> None:
         result_sets = await asyncio.gather(*(
@@ -581,6 +582,11 @@ async def _watch_service_agent_audit(run_id: str, since: float, stop: asyncio.Ev
                 if not key or key in seen:
                     continue
                 seen.add(key)
+                request = (str(event.get("agent_id", "")), str(event.get("request_id", "")))
+                if event.get("type") == "agent_event" and event.get("event") == "atp_input":
+                    pending.add(request)
+                elif event.get("type") == "prompt_result":
+                    pending.discard(request)
                 _record_service_audit_event(run_id, event)
 
     while not stop.is_set():
@@ -590,6 +596,12 @@ async def _watch_service_agent_audit(run_id: str, since: float, stop: asyncio.Ev
         except asyncio.TimeoutError:
             pass
     await sweep()
+    # A service can send its ATP reply before its model emits prompt_result.
+    # Travel completion must not truncate those independently running sessions.
+    deadline = time.monotonic() + drain_seconds
+    while pending and _chat_state.get("run_id") == run_id and time.monotonic() < deadline:
+        await asyncio.sleep(min(0.2, max(0.0, deadline - time.monotonic())))
+        await sweep()
 
 
 class PublicAgentError(RuntimeError):

@@ -18,7 +18,7 @@ import json
 import secrets
 from typing import Any
 
-from gmssl import sm2, sm4
+from gmssl import sm4
 
 from atp.core.canonicalize import canonicalize
 from atp.security.sm2 import SM2PrivateKey, SM2PublicKey, sm3_digest
@@ -107,15 +107,13 @@ def encrypt_payload(
     ciphertext = cipher.crypt_cbc(iv, plaintext)
     tag = _sm3_hmac(mac_key, aad + iv + ciphertext)
 
-    key_cipher = sm2.CryptSM2(private_key="", public_key=recipient_public_key.public_key_hex)
-    # gmssl incorrectly lstrip("04")s a bare point, corrupting valid coordinates.
-    # Match the existing signing/verification workaround in security.sm2.
-    key_cipher.public_key = recipient_public_key.public_key_hex
-    # gmssl returns ``None`` for the SM2 KDF's negligible all-zero output;
+    # The typed SM2 wrapper samples its temporary scalar with secrets rather
+    # than calling gmssl.encrypt(), whose default RNG is not cryptographic.
+    # It returns ``None`` for the SM2 KDF's negligible all-zero output;
     # retry with a fresh ephemeral point instead of serializing ``None``.
     wrapped_key = None
     for _ in range(8):
-        wrapped_key = key_cipher.encrypt(session_key)
+        wrapped_key = recipient_public_key.encrypt(session_key)
         if wrapped_key is not None:
             break
     if wrapped_key is None:
@@ -156,13 +154,10 @@ def decrypt_payload(
     if len(tag) != 32:
         raise SM4PayloadError("invalid SM3 tag length")
 
-    key_cipher = sm2.CryptSM2(
-        private_key=recipient_private_key.private_key_hex,
-        public_key=recipient_private_key.public_key_hex,
-    )
-    key_cipher.public_key = recipient_private_key.public_key_hex
+    if len(wrapped_key) != 64 + SM4_KEY_SIZE + 32:
+        raise SM4PayloadError("invalid SM2 wrapped-key length")
     try:
-        session_key = key_cipher.decrypt(wrapped_key)
+        session_key = recipient_private_key.decrypt(wrapped_key)
     except Exception as exc:
         raise SM4PayloadError("SM2 session-key unwrap failed") from exc
     if session_key is None or len(session_key) != SM4_KEY_SIZE:

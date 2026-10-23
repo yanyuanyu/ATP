@@ -107,3 +107,58 @@ def test_largest_generated_private_scalar_can_sign():
         key = SM2PrivateKey.generate()
     signature = key.sign(b'largest signing key')
     assert key.public_key().verify(signature, b'largest signing key')
+
+
+@pytest.mark.parametrize("scalar", [1, int(sm2.default_ecc_table["n"], 16) - 1])
+def test_sm2_secure_encryption_is_byte_compatible_with_legacy_format(scalar):
+    key = SM2PrivateKey.generate()
+    plaintext = b"\x00" * 3 + b"session-key!!\x00"
+    legacy = sm2.CryptSM2(private_key=key.private_key_hex, public_key=key.public_key_hex)
+    legacy.public_key = key.public_key_hex
+    with patch("gmssl.func.random_hex", return_value=f"{scalar:064x}"):
+        expected = legacy.encrypt(plaintext)
+    with patch("atp.security.sm2._secure_scalar_hex", return_value=f"{scalar:064x}"):
+        encrypted = key.public_key().encrypt(plaintext)
+    assert encrypted == expected
+    assert key.decrypt(expected) == plaintext
+    assert legacy.decrypt(encrypted) == plaintext
+
+
+@pytest.mark.parametrize("offset", [0, int(sm2.default_ecc_table["n"], 16) - 2])
+def test_sm2_encryption_samples_legal_scalar_range(offset):
+    key = SM2PrivateKey.generate()
+    with patch("atp.security.sm2.secrets.randbelow", return_value=offset) as rng:
+        encrypted = key.public_key().encrypt(b"key")
+    rng.assert_called_once_with(int(sm2.default_ecc_table["n"], 16) - 1)
+    assert encrypted[:64].hex() == sm2.CryptSM2(private_key="", public_key="")._kg(offset + 1, sm2.default_ecc_table["g"])
+    assert key.decrypt(encrypted) == b"key"
+
+
+@pytest.mark.parametrize("part", ["point", "ciphertext", "digest", "truncated"])
+def test_sm2_decryption_rejects_corrupted_ciphertext(part):
+    key = SM2PrivateKey.generate()
+    encrypted = bytearray(key.public_key().encrypt(b"key"))
+    if part == "point":
+        encrypted[:64] = b"\x00" * 64
+    elif part == "ciphertext":
+        encrypted[64] ^= 1
+    elif part == "digest":
+        encrypted[-1] ^= 1
+    else:
+        encrypted = encrypted[:96]
+    with pytest.raises(ValueError):
+        key.decrypt(bytes(encrypted))
+
+
+def test_sm2_kdf_zero_output_is_not_used():
+    key = SM2PrivateKey.generate()
+    valid = key.public_key().encrypt(b"key")
+    with patch("gmssl.sm3.sm3_kdf", return_value="00" * 3):
+        assert key.public_key().encrypt(b"key") is None
+        with pytest.raises(ValueError, match="all-zero"):
+            key.decrypt(valid)
+
+
+def test_sm2_encryption_rejects_empty_plaintext():
+    with pytest.raises(ValueError, match="non-empty"):
+        SM2PrivateKey.generate().public_key().encrypt(b"")
