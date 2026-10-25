@@ -30,8 +30,8 @@
       "transport": "TLCPv1.1",
       "cipher": "ECC-SM2-SM4-CBC-SM3",
       "decrypted_equal": true,
-      "elapsed_ms": 77.74465599504765,
-      "nonce": "msg-07a4bc233901"
+      "elapsed_ms": 69.22902000223985,
+      "nonce": "msg-ac3cd8e8d633"
     },
     {
       "domain": "hotel",
@@ -40,8 +40,8 @@
       "transport": "TLCPv1.1",
       "cipher": "ECC-SM2-SM4-CBC-SM3",
       "decrypted_equal": true,
-      "elapsed_ms": 81.74602699727984,
-      "nonce": "msg-84e0d8512377"
+      "elapsed_ms": 73.61935800145147,
+      "nonce": "msg-adcb84609412"
     },
     {
       "domain": "hotel",
@@ -50,8 +50,8 @@
       "transport": "TLCPv1.1",
       "cipher": "ECC-SM2-SM4-CBC-SM3",
       "decrypted_equal": true,
-      "elapsed_ms": 111.06648499844596,
-      "nonce": "msg-ff987af26bbb"
+      "elapsed_ms": 83.33632699941518,
+      "nonce": "msg-633ca8401ec7"
     },
     {
       "domain": "hotel",
@@ -60,8 +60,8 @@
       "transport": "TLCPv1.1",
       "cipher": "ECC-SM2-SM4-CBC-SM3",
       "decrypted_equal": true,
-      "elapsed_ms": 570.3401780046988,
-      "nonce": "msg-2cfa0f0bfc02"
+      "elapsed_ms": 589.8892230034107,
+      "nonce": "msg-783064d4bbe1"
     },
     {
       "domain": "hotel",
@@ -70,8 +70,8 @@
       "transport": "TLCPv1.1",
       "cipher": "ECC-SM2-SM4-CBC-SM3",
       "decrypted_equal": true,
-      "elapsed_ms": 803.0843300002743,
-      "nonce": "msg-71fa683b2532"
+      "elapsed_ms": 808.3984140030225,
+      "nonce": "msg-c146271fa121"
     },
     {
       "domain": "hotel",
@@ -80,8 +80,8 @@
       "transport": "TLCPv1.1",
       "cipher": "ECC-SM2-SM4-CBC-SM3",
       "decrypted_equal": true,
-      "elapsed_ms": 945.8781639987137,
-      "nonce": "msg-cbf3ce691bf5"
+      "elapsed_ms": 997.5071230001049,
+      "nonce": "msg-9eb3a5ef3df0"
     },
     {
       "domain": "payment",
@@ -90,8 +90,8 @@
       "transport": "TLCPv1.1",
       "cipher": "ECC-SM2-SM4-CBC-SM3",
       "decrypted_equal": true,
-      "elapsed_ms": 94.60402799595613,
-      "nonce": "msg-6d767d49f9ba"
+      "elapsed_ms": 71.13950200437102,
+      "nonce": "msg-47235223f20d"
     },
     {
       "domain": "payment",
@@ -100,8 +100,8 @@
       "transport": "TLCPv1.1",
       "cipher": "ECC-SM2-SM4-CBC-SM3",
       "decrypted_equal": true,
-      "elapsed_ms": 82.38519099541008,
-      "nonce": "msg-7e6b99aca23d"
+      "elapsed_ms": 74.45418299903395,
+      "nonce": "msg-7e725c62abe7"
     },
     {
       "domain": "payment",
@@ -110,8 +110,8 @@
       "transport": "TLCPv1.1",
       "cipher": "ECC-SM2-SM4-CBC-SM3",
       "decrypted_equal": true,
-      "elapsed_ms": 91.59754099528072,
-      "nonce": "msg-a92915341df9"
+      "elapsed_ms": 84.39600799465552,
+      "nonce": "msg-9fbb40ee08a7"
     },
     {
       "domain": "payment",
@@ -120,8 +120,8 @@
       "transport": "TLCPv1.1",
       "cipher": "ECC-SM2-SM4-CBC-SM3",
       "decrypted_equal": true,
-      "elapsed_ms": 648.567757998535,
-      "nonce": "msg-55b35ab41912"
+      "elapsed_ms": 594.829870002286,
+      "nonce": "msg-e4cabf84334e"
     },
     {
       "domain": "payment",
@@ -130,8 +130,8 @@
       "transport": "TLCPv1.1",
       "cipher": "ECC-SM2-SM4-CBC-SM3",
       "decrypted_equal": true,
-      "elapsed_ms": 763.8147800025763,
-      "nonce": "msg-42fc46b47b93"
+      "elapsed_ms": 867.6111629974912,
+      "nonce": "msg-49dec13a34a6"
     },
     {
       "domain": "payment",
@@ -140,8 +140,8 @@
       "transport": "TLCPv1.1",
       "cipher": "ECC-SM2-SM4-CBC-SM3",
       "decrypted_equal": true,
-      "elapsed_ms": 1019.64669800509,
-      "nonce": "msg-442b2d65c976"
+      "elapsed_ms": 974.1174060036428,
+      "nonce": "msg-ca7009385371"
     }
   ],
   "attacks": [

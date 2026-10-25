@@ -1,0 +1,68 @@
+[
+  {
+    "name": "python-full",
+    "exit_code": 0,
+    "seconds": 15.797,
+    "passed": true
+  },
+  {
+    "name": "finance-targeted",
+    "exit_code": 0,
+    "seconds": 5.531,
+    "passed": true
+  },
+  {
+    "name": "transfer-recovery-targeted",
+    "exit_code": 0,
+    "seconds": 2.484,
+    "passed": true
+  },
+  {
+    "name": "node-runtime",
+    "exit_code": 0,
+    "seconds": 8.36,
+    "passed": true
+  },
+  {
+    "name": "go-gateway",
+    "exit_code": 0,
+    "seconds": 6.703,
+    "passed": true
+  },
+  {
+    "name": "frontend-build",
+    "exit_code": 0,
+    "seconds": 6.828,
+    "passed": true
+  },
+  {
+    "name": "protocol-crypto-ats",
+    "exit_code": 0,
+    "seconds": 30.14,
+    "passed": true
+  },
+  {
+    "name": "ack-receiver-restart",
+    "exit_code": 0,
+    "seconds": 3.484,
+    "passed": true
+  },
+  {
+    "name": "restart-recovery",
+    "exit_code": 0,
+    "seconds": 38.281,
+    "passed": true
+  },
+  {
+    "name": "finance-end-to-end",
+    "exit_code": 0,
+    "seconds": 30.859,
+    "passed": true
+  },
+  {
+    "name": "browser-financial",
+    "exit_code": 0,
+    "seconds": 13.391,
+    "passed": true
+  }
+]

@@ -1,0 +1,116 @@
+{
+  "passed": true,
+  "async_messages": 1,
+  "request_response_pairs": 1,
+  "subscription_events": 5,
+  "event_indices": [
+    1,
+    2,
+    3,
+    4,
+    5
+  ],
+  "queued_64kib": true,
+  "deliveries": [
+    {
+      "type": "message",
+      "nonce": "msg-6273ec40ca35",
+      "from": "ch5-1792920559681954973@family.test",
+      "to": "ch5-1792920559681954973@hotel.test",
+      "in_reply_to": null,
+      "elapsed_seconds": 0.2890676600000006,
+      "rows": 1,
+      "passed": true
+    },
+    {
+      "type": "request",
+      "nonce": "msg-2fc818a5325e",
+      "from": "ch5-1792920559681954973@family.test",
+      "to": "ch5-1792920559681954973@payment.test",
+      "in_reply_to": null,
+      "elapsed_seconds": 0.33397124399925815,
+      "rows": 1,
+      "passed": true
+    },
+    {
+      "type": "response",
+      "nonce": "msg-74a081d2650b",
+      "from": "ch5-1792920559681954973@payment.test",
+      "to": "ch5-1792920559681954973@family.test",
+      "in_reply_to": "msg-2fc818a5325e",
+      "elapsed_seconds": 0.2888646279970999,
+      "rows": 1,
+      "passed": true
+    },
+    {
+      "type": "request",
+      "nonce": "msg-7fe0b8427b0f",
+      "from": "ch5-1792920559681954973@family.test",
+      "to": "ch5-1792920559681954973@hotel.test",
+      "in_reply_to": null,
+      "elapsed_seconds": 0.30285561199707445,
+      "rows": 1,
+      "passed": true
+    },
+    {
+      "type": "event",
+      "nonce": "msg-6cc86fe9cbe6",
+      "from": "ch5-1792920559681954973@hotel.test",
+      "to": "ch5-1792920559681954973@family.test",
+      "in_reply_to": "msg-7fe0b8427b0f",
+      "elapsed_seconds": 0.27846975900320103,
+      "rows": 1,
+      "passed": true
+    },
+    {
+      "type": "event",
+      "nonce": "msg-80df22fa8aa7",
+      "from": "ch5-1792920559681954973@hotel.test",
+      "to": "ch5-1792920559681954973@family.test",
+      "in_reply_to": "msg-7fe0b8427b0f",
+      "elapsed_seconds": 0.29262267499871086,
+      "rows": 1,
+      "passed": true
+    },
+    {
+      "type": "event",
+      "nonce": "msg-f85ce8f9fce0",
+      "from": "ch5-1792920559681954973@hotel.test",
+      "to": "ch5-1792920559681954973@family.test",
+      "in_reply_to": "msg-7fe0b8427b0f",
+      "elapsed_seconds": 0.30436077599733835,
+      "rows": 1,
+      "passed": true
+    },
+    {
+      "type": "event",
+      "nonce": "msg-7e410f10fa5c",
+      "from": "ch5-1792920559681954973@hotel.test",
+      "to": "ch5-1792920559681954973@family.test",
+      "in_reply_to": "msg-7fe0b8427b0f",
+      "elapsed_seconds": 0.3227068199994392,
+      "rows": 1,
+      "passed": true
+    },
+    {
+      "type": "event",
+      "nonce": "msg-2aabdc42ef09",
+      "from": "ch5-1792920559681954973@hotel.test",
+      "to": "ch5-1792920559681954973@family.test",
+      "in_reply_to": "msg-7fe0b8427b0f",
+      "elapsed_seconds": 0.31609080899943365,
+      "rows": 1,
+      "passed": true
+    },
+    {
+      "type": "message",
+      "nonce": "msg-62db9d0c7196",
+      "from": "ch5-1792920559681954973@family.test",
+      "to": "ch5-1792920559681954973@payment.test",
+      "in_reply_to": null,
+      "elapsed_seconds": 1.265902223996818,
+      "rows": 1,
+      "passed": true
+    }
+  ]
+}

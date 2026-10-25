@@ -1,0 +1,101 @@
+{
+  "passed": true,
+  "server_networks": [
+    {
+      "service": "jinmi-server-family",
+      "networks": {
+        "atp-jinmi_family": "172.32.1.1"
+      },
+      "image_id": "sha256:e8d257b74f665d7031f82313d71a1594598815c65aaf7207fb1c2f14d5edc91f"
+    },
+    {
+      "service": "jinmi-server-hotel",
+      "networks": {
+        "atp-jinmi_hotel": "172.32.2.1"
+      },
+      "image_id": "sha256:e8d257b74f665d7031f82313d71a1594598815c65aaf7207fb1c2f14d5edc91f"
+    },
+    {
+      "service": "jinmi-server-payment",
+      "networks": {
+        "atp-jinmi_payment": "172.32.3.1"
+      },
+      "image_id": "sha256:e8d257b74f665d7031f82313d71a1594598815c65aaf7207fb1c2f14d5edc91f"
+    }
+  ],
+  "tcp_checks": [
+    {
+      "target": "family",
+      "ip": "172.32.1.1",
+      "connected": true,
+      "source": "family",
+      "expected_connected": true,
+      "passed": true
+    },
+    {
+      "target": "hotel",
+      "ip": "172.32.2.1",
+      "connected": false,
+      "source": "family",
+      "expected_connected": false,
+      "passed": true
+    },
+    {
+      "target": "payment",
+      "ip": "172.32.3.1",
+      "connected": false,
+      "source": "family",
+      "expected_connected": false,
+      "passed": true
+    },
+    {
+      "target": "family",
+      "ip": "172.32.1.1",
+      "connected": false,
+      "source": "hotel",
+      "expected_connected": false,
+      "passed": true
+    },
+    {
+      "target": "hotel",
+      "ip": "172.32.2.1",
+      "connected": true,
+      "source": "hotel",
+      "expected_connected": true,
+      "passed": true
+    },
+    {
+      "target": "payment",
+      "ip": "172.32.3.1",
+      "connected": false,
+      "source": "hotel",
+      "expected_connected": false,
+      "passed": true
+    },
+    {
+      "target": "family",
+      "ip": "172.32.1.1",
+      "connected": false,
+      "source": "payment",
+      "expected_connected": false,
+      "passed": true
+    },
+    {
+      "target": "hotel",
+      "ip": "172.32.2.1",
+      "connected": false,
+      "source": "payment",
+      "expected_connected": false,
+      "passed": true
+    },
+    {
+      "target": "payment",
+      "ip": "172.32.3.1",
+      "connected": true,
+      "source": "payment",
+      "expected_connected": true,
+      "passed": true
+    }
+  ],
+  "cross_domain_direct_connections_blocked": 6
+}

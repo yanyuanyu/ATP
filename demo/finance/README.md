@@ -40,6 +40,15 @@
 
 ## 测试与报告材料
 
+第五章完整材料通过以下脚本生成，输出到仓库旁的“第五章测试材料”目录：
+
+- `chapter5_model.py`：真实四智能体完整协作及订单参数核对。
+- `chapter5_collect.py`：全量与分类回归、网络隔离、三种消息模式、64 KiB队列、确认丢失去重、三轮整组重启、金融端到端与浏览器验收。
+- `chapter5_figures.py`：根据原始数据生成莫兰迪学术图表、SVG与CSV，使用matplotlib和numpy。
+- `chapter5_screenshots.py`：通过Python Playwright和本机Edge截取真实界面局部。
+- `chapter5_assemble.py`：生成测试矩阵、图像总览、来源校验和完整ZIP。
+- `chapter5_review.py`：检查300 dpi图像、总览导航和手机布局；总览预览服务使用本机18090端口。
+
 ```powershell
 .\启动金融演示.ps1 -Action test
 ```

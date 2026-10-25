@@ -1,0 +1,97 @@
+{
+  "run_id": "run-20261025-092607",
+  "model": "qwen3.7-plus",
+  "elapsed_seconds": 50.66,
+  "tool_calls": 6,
+  "tool_counts": {
+    "atp_receive": 3,
+    "atp_send": 3
+  },
+  "status": "idle",
+  "error": null,
+  "error_code": null,
+  "evidence": {
+    "task_id": "364c04ad-a3c0-435a-86b9-252324cdb7c2",
+    "context_id": "efa0755c-2ba2-4802-a69a-8a9164a02673",
+    "search_received": true,
+    "price_count": 3,
+    "payment_received": true,
+    "payment_approved": true,
+    "pending": null,
+    "received_nonces": [
+      "msg-3e2a973e445a",
+      "msg-b7a8228dfb98",
+      "msg-62c6c208822e",
+      "msg-b8ba2ad71c01",
+      "msg-633e174d1004"
+    ],
+    "sent": [
+      {
+        "to": "search@hotel.test",
+        "subject": "search",
+        "body": "Paris 2 nights",
+        "nonce": "msg-45de2b360821",
+        "status": "accepted"
+      },
+      {
+        "to": "rates@hotel.test",
+        "subject": "subscribe",
+        "body": "ParisGarden",
+        "nonce": "msg-b30df4a725c4",
+        "status": "accepted"
+      },
+      {
+        "to": "bill@payment.test",
+        "subject": "book+pay",
+        "body": "{\"hotel\":\"ParisGarden\",\"nights\":2,\"nightly_amount\":170,\"currency\":\"USD\"}",
+        "hotel": "ParisGarden",
+        "nights": 2,
+        "nightly_amount": 170,
+        "nonce": "msg-e227d27a6008",
+        "status": "accepted"
+      }
+    ],
+    "prices": [
+      {
+        "kind": "price-change",
+        "event_index": 1,
+        "total_events": 3,
+        "hotel": "ParisGarden",
+        "price": 180,
+        "currency": "USD",
+        "unit": "night"
+      },
+      {
+        "kind": "price-change",
+        "event_index": 2,
+        "total_events": 3,
+        "hotel": "ParisGarden",
+        "price": 170,
+        "currency": "USD",
+        "unit": "night"
+      },
+      {
+        "kind": "price-change",
+        "event_index": 3,
+        "total_events": 3,
+        "hotel": "ParisGarden",
+        "price": 190,
+        "currency": "USD",
+        "unit": "night"
+      }
+    ],
+    "payment": {
+      "kind": "payment-result",
+      "hotel": "ParisGarden",
+      "nights": 2,
+      "nightly_amount": 170,
+      "approved": true,
+      "simulation": true,
+      "authorization_id": "sim-4d871fce",
+      "total": 340,
+      "currency": "USD",
+      "reason": "local demo policy approved"
+    }
+  },
+  "result": "已完成模拟预订和付款：ParisGarden，2 晚，最低每晚 170 USD，总价 340 USD。已核验搜索结果、三条价格及付款回执（sim-4d871fce）。未发生真实扣款。"
+}

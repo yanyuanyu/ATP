@@ -1,0 +1,22 @@
+{
+  "run_id": "run-20261025-092607",
+  "events": [
+    {
+      "phase": "chat",
+      "event": "user_message",
+      "narrative": "User instructed the Pi Travel Agent",
+      "run_id": "run-20261025-092607",
+      "ts": "2026-10-25T09:26:07.627Z",
+      "seq": 1
+    },
+    {
+      "phase": "chat",
+      "event": "assistant_message",
+      "narrative": "Pi Travel Agent completed the user turn",
+      "run_id": "run-20261025-092607",
+      "ts": "2026-10-25T09:26:57.752Z",
+      "seq": 2
+    }
+  ],
+  "count": 2
+}

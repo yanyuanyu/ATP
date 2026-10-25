@@ -57,6 +57,7 @@ def main(outage):
     OUT.mkdir(exist_ok=True)
     report={"started_at":time.time(),"transport":"real ATP three-domain Docker/TLCP","simulation":True,"tests":[]}
     initial=statement()
+    report['initial_statement']=initial
     oid,elapsed=new_order()
     report["tests"].append({"name":"three_signed_quote_events","passed":True,"seconds":elapsed,"order_id":oid})
     for variant in ("amount","payee","signature","unauthorized"):
@@ -67,6 +68,7 @@ def main(outage):
         assert event["passed"],event
         report["tests"].append({"name":variant,"passed":True,"code":event["result"].get("code")})
     declined=statement()
+    report['declined_statement']=declined
     assert declined["accounts"]==initial["accounts"]
     assert len(declined["payments"])==len(initial["payments"])
     report["tests"].append({"name":"rejected_requests_leave_balances_unchanged","passed":True})
@@ -75,6 +77,7 @@ def main(outage):
     receipt=find(s,oid)["receipt"]
     assert receipt["amount_fen"]==34000 and receipt["simulation"] is True
     paid=statement()
+    report['paid_statement']=paid
     assert len(paid["payments"])==len(initial["payments"])+1
     balances={a["id"]:a["balance_fen"] for a in paid["accounts"]}
     old={a["id"]:a["balance_fen"] for a in initial["accounts"]}
@@ -89,6 +92,7 @@ def main(outage):
     event=next(e for e in s["events"] if e["kind"]=="test" and e.get("order_id")==oid)
     assert event["passed"] and event["result"]["receipt_id"]==receipt["receipt_id"]
     duplicate=statement()
+    report['duplicate_statement']=duplicate
     assert duplicate["accounts"]==paid["accounts"] and len(duplicate["payments"])==len(paid["payments"])
     report["tests"].append({"name":"new_nonce_same_order_idempotency","passed":True})
     if outage:
@@ -108,6 +112,7 @@ def main(outage):
         s,_=wait(lambda s:find(s,oid2)["status"]=="PAID",timeout=90)
         elapsed=time.monotonic()-start
         final=statement()
+        report['recovered_statement']=final
         assert len([p for p in final["payments"] if p["order_id"]==oid2])==1
         report["tests"].append({"name":"payment_domain_offline_queue_recovery","passed":True,"seconds":elapsed,"order_id":oid2})
     report.update(passed=True,finished_at=time.time(),state=state())

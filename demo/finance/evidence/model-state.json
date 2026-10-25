@@ -1,0 +1,952 @@
+{
+  "session_id": "fcb96de0-efd7-4c59-99d2-c5e564babdfe",
+  "status": "idle",
+  "run_id": "run-20261025-092607",
+  "active_request_id": null,
+  "messages": [
+    {
+      "id": "user-98cf7f8f-700e-4bd4-906f-81fff6e1fc2d",
+      "request_id": "98cf7f8f-700e-4bd4-906f-81fff6e1fc2d",
+      "role": "user",
+      "agent_id": "user",
+      "content": "执行一次完整的模拟商旅预订。任务参数：city=Paris，nights=2。首先通过atp_send向search@hotel.test发送search，body写为Paris 2 nights；核对搜索结果nights=2。然后向rates@hotel.test订阅ParisGarden，收齐三条价格事件180、170、190 USD。最后按最低170 USD每晚、2晚、总计340 USD，向bill@payment.test发起book+pay并等待成功回执。我授权本次模拟付款。请用中文说明结果。",
+      "status": "completed",
+      "created_at": "2026-10-25T09:26:07.115Z",
+      "updated_at": "2026-10-25T09:26:07.115Z"
+    },
+    {
+      "id": "assistant-98cf7f8f-700e-4bd4-906f-81fff6e1fc2d",
+      "request_id": "98cf7f8f-700e-4bd4-906f-81fff6e1fc2d",
+      "role": "assistant",
+      "agent_id": "travel@family.test",
+      "content": "已完成模拟预订和付款：ParisGarden，2 晚，最低每晚 170 USD，总价 340 USD。已核验搜索结果、三条价格及付款回执（sim-4d871fce）。未发生真实扣款。",
+      "status": "completed",
+      "created_at": "2026-10-25T09:26:07.115Z",
+      "updated_at": "2026-10-25T09:26:57.749Z"
+    }
+  ],
+  "activities": [
+    {
+      "id": "b9c85e9f-5665-45bd-86e2-3eb31ae379d2",
+      "request_id": "98cf7f8f-700e-4bd4-906f-81fff6e1fc2d",
+      "tool": "atp_send",
+      "status": "completed",
+      "args": {
+        "to": "search@hotel.test",
+        "subject": "search",
+        "body": "Paris 2 nights"
+      },
+      "started_at": "2026-10-25T09:26:11.091Z",
+      "ended_at": "2026-10-25T09:26:11.153Z"
+    },
+    {
+      "id": "dd730150-714d-4741-8fc1-f1f9efe33df8",
+      "request_id": "98cf7f8f-700e-4bd4-906f-81fff6e1fc2d",
+      "tool": "atp_receive",
+      "status": "completed",
+      "args": {
+        "wait_seconds": 5
+      },
+      "started_at": "2026-10-25T09:26:13.106Z",
+      "ended_at": "2026-10-25T09:26:21.219Z"
+    },
+    {
+      "id": "0ac31d5b-b7c7-4c98-8377-db744e02946e",
+      "request_id": "98cf7f8f-700e-4bd4-906f-81fff6e1fc2d",
+      "tool": "atp_send",
+      "status": "completed",
+      "args": {
+        "to": "rates@hotel.test",
+        "subject": "subscribe",
+        "body": "ParisGarden"
+      },
+      "started_at": "2026-10-25T09:26:24.188Z",
+      "ended_at": "2026-10-25T09:26:24.218Z"
+    },
+    {
+      "id": "f4d1805e-1e2d-48ea-a8d5-92d79a9281a1",
+      "request_id": "98cf7f8f-700e-4bd4-906f-81fff6e1fc2d",
+      "tool": "atp_receive",
+      "status": "completed",
+      "args": {
+        "wait_seconds": 5
+      },
+      "started_at": "2026-10-25T09:26:26.353Z",
+      "ended_at": "2026-10-25T09:26:32.447Z"
+    },
+    {
+      "id": "550a6860-e5b9-4e9a-b249-10a519fc7f55",
+      "request_id": "98cf7f8f-700e-4bd4-906f-81fff6e1fc2d",
+      "tool": "atp_send",
+      "status": "completed",
+      "args": {
+        "to": "bill@payment.test",
+        "subject": "book+pay",
+        "body": "Booking ParisGarden for 2 nights at 170 USD per night",
+        "hotel": "ParisGarden",
+        "nights": 2,
+        "nightly_amount": 170
+      },
+      "started_at": "2026-10-25T09:26:37.592Z",
+      "ended_at": "2026-10-25T09:26:37.624Z"
+    },
+    {
+      "id": "7d4a5864-237d-46fe-9b13-f91820110347",
+      "request_id": "98cf7f8f-700e-4bd4-906f-81fff6e1fc2d",
+      "tool": "atp_receive",
+      "status": "completed",
+      "args": {
+        "wait_seconds": 5
+      },
+      "started_at": "2026-10-25T09:26:39.273Z",
+      "ended_at": "2026-10-25T09:26:49.515Z"
+    }
+  ],
+  "agent_audit": [
+    {
+      "id": "6952ad59-deba-4c28-922e-cec534df4b20",
+      "run_id": "run-20261025-092607",
+      "agent_id": "travel@family.test",
+      "role": "travel",
+      "kind": "user_input",
+      "title": "User instruction",
+      "data": {
+        "text": "执行一次完整的模拟商旅预订。任务参数：city=Paris，nights=2。首先通过atp_send向search@hotel.test发送search，body写为Paris 2 nights；核对搜索结果nights=2。然后向rates@hotel.test订阅ParisGarden，收齐三条价格事件180、170、190 USD。最后按最低170 USD每晚、2晚、总计340 USD，向bill@payment.test发起book+pay并等待成功回执。我授权本次模拟付款。请用中文说明结果。"
+      },
+      "request_id": "98cf7f8f-700e-4bd4-906f-81fff6e1fc2d",
+      "ts": "2026-10-25T09:26:07.115Z"
+    },
+    {
+      "id": "9cd435c2-1c56-4749-814c-32edd1c490a1",
+      "run_id": "run-20261025-092607",
+      "agent_id": "travel@family.test",
+      "role": "travel",
+      "kind": "tool_input",
+      "title": "atp_send",
+      "data": {
+        "to": "search@hotel.test",
+        "subject": "search",
+        "body": "Paris 2 nights"
+      },
+      "request_id": "98cf7f8f-700e-4bd4-906f-81fff6e1fc2d",
+      "ts": "2026-10-25T09:26:11.091Z"
+    },
+    {
+      "id": "26c024af-66bf-4b19-a1a4-3463c44a1d35",
+      "run_id": "run-20261025-092607",
+      "agent_id": "travel@family.test",
+      "role": "travel",
+      "kind": "tool_output",
+      "title": "atp_send",
+      "data": {
+        "output": {
+          "details": {
+            "status": "accepted",
+            "nonce": "msg-45de2b360821",
+            "timestamp": 1792920371
+          },
+          "text": "{\"status\":\"accepted\",\"nonce\":\"msg-45de2b360821\"}"
+        },
+        "is_error": false
+      },
+      "request_id": "98cf7f8f-700e-4bd4-906f-81fff6e1fc2d",
+      "ts": "2026-10-25T09:26:11.153Z"
+    },
+    {
+      "id": "ab409018-5548-4ea0-aefc-0fac7b3b3307",
+      "run_id": "run-20261025-092607",
+      "agent_id": "travel@family.test",
+      "role": "travel",
+      "kind": "tool_input",
+      "title": "atp_receive",
+      "data": {
+        "wait_seconds": 5
+      },
+      "request_id": "98cf7f8f-700e-4bd4-906f-81fff6e1fc2d",
+      "ts": "2026-10-25T09:26:13.106Z"
+    },
+    {
+      "id": "b4907f87-6805-4748-a907-2463ef450005",
+      "run_id": "run-20261025-092607",
+      "agent_id": "search@hotel.test",
+      "role": "search",
+      "kind": "atp_input",
+      "title": "ATP input",
+      "data": {
+        "from": "travel@family.test",
+        "to": "search@hotel.test",
+        "subject": "search",
+        "body": "Paris 2 nights",
+        "task_id": "364c04ad-a3c0-435a-86b9-252324cdb7c2",
+        "context_id": "efa0755c-2ba2-4802-a69a-8a9164a02673",
+        "in_reply_to": null,
+        "nonce": "msg-45de2b360821"
+      },
+      "request_id": "msg-45de2b360821",
+      "ts": "2026-10-25T09:26:12.491Z"
+    },
+    {
+      "id": "3d62fc81-3ebe-45da-a29f-d0091d588b3c",
+      "run_id": "run-20261025-092607",
+      "agent_id": "search@hotel.test",
+      "role": "search",
+      "kind": "tool_input",
+      "title": "inventory_lookup",
+      "data": {
+        "city": "Paris",
+        "nights": 2
+      },
+      "request_id": "msg-45de2b360821",
+      "ts": "2026-10-25T09:26:15.467Z"
+    },
+    {
+      "id": "a90dfac7-dac5-4e46-ac80-1c5e6c8ec0e4",
+      "run_id": "run-20261025-092607",
+      "agent_id": "search@hotel.test",
+      "role": "search",
+      "kind": "tool_output",
+      "title": "inventory_lookup",
+      "data": {
+        "output": {
+          "details": {
+            "kind": "search-result",
+            "city": "Paris",
+            "nights": 2,
+            "matches": [
+              {
+                "hotel": "ParisGarden",
+                "city": "Paris",
+                "available_nights": 7,
+                "room": "garden queen",
+                "rating": 4.8
+              },
+              {
+                "hotel": "RiverLeftBank",
+                "city": "Paris",
+                "available_nights": 4,
+                "room": "classic double",
+                "rating": 4.6
+              },
+              {
+                "hotel": "CanalStudio",
+                "city": "Paris",
+                "available_nights": 2,
+                "room": "studio",
+                "rating": 4.4
+              }
+            ]
+          },
+          "text": "{\"kind\":\"search-result\",\"city\":\"Paris\",\"nights\":2,\"matches\":[{\"hotel\":\"ParisGarden\",\"city\":\"Paris\",\"available_nights\":7,\"room\":\"garden queen\",\"rating\":4.8},{\"hotel\":\"RiverLeftBank\",\"city\":\"Paris\",\"available_nights\":4,\"room\":\"classic double\",\"rating\":4.6},{\"hotel\":\"CanalStudio\",\"city\":\"Paris\",\"available_nights\":2,\"room\":\"studio\",\"rating\":4.4}]}"
+        },
+        "is_error": false
+      },
+      "request_id": "msg-45de2b360821",
+      "ts": "2026-10-25T09:26:15.468Z"
+    },
+    {
+      "id": "13152631-2ef7-4431-a4b2-da9de1c6e392",
+      "run_id": "run-20261025-092607",
+      "agent_id": "search@hotel.test",
+      "role": "search",
+      "kind": "tool_input",
+      "title": "send_search_results",
+      "data": {
+        "subject": "Paris Hotel Search Results",
+        "body": "Search results for Paris (2 nights): 1) ParisGarden - garden queen room, rating 4.8, available 7 nights. 2) RiverLeftBank - classic double room, rating 4.6, available 4 nights. 3) CanalStudio - studio room, rating 4.4, available 2 nights."
+      },
+      "request_id": "msg-45de2b360821",
+      "ts": "2026-10-25T09:26:19.889Z"
+    },
+    {
+      "id": "d32bf1d9-e369-433b-a965-97693b449719",
+      "run_id": "run-20261025-092607",
+      "agent_id": "search@hotel.test",
+      "role": "search",
+      "kind": "tool_output",
+      "title": "send_search_results",
+      "data": {
+        "output": {
+          "details": {
+            "status": "accepted",
+            "nonce": "msg-3e2a973e445a",
+            "timestamp": 1792920379
+          },
+          "text": "{\"status\":\"accepted\",\"nonce\":\"msg-3e2a973e445a\",\"to\":\"travel@family.test\"}"
+        },
+        "is_error": false
+      },
+      "request_id": "msg-45de2b360821",
+      "ts": "2026-10-25T09:26:19.931Z"
+    },
+    {
+      "id": "a1bd6cee-22e3-406a-a427-de8a4639b76d",
+      "run_id": "run-20261025-092607",
+      "agent_id": "travel@family.test",
+      "role": "travel",
+      "kind": "tool_output",
+      "title": "atp_receive",
+      "data": {
+        "output": {
+          "details": {
+            "task_id": "364c04ad-a3c0-435a-86b9-252324cdb7c2",
+            "context_id": "efa0755c-2ba2-4802-a69a-8a9164a02673",
+            "search_received": true,
+            "price_count": 0,
+            "payment_received": false,
+            "payment_approved": false,
+            "pending": null,
+            "received_nonces": [
+              "msg-3e2a973e445a"
+            ],
+            "sent": [
+              {
+                "to": "search@hotel.test",
+                "subject": "search",
+                "body": "Paris 2 nights",
+                "nonce": "msg-45de2b360821",
+                "status": "accepted"
+              }
+            ],
+            "prices": [],
+            "payment": null
+          },
+          "text": "{\"task_id\":\"364c04ad-a3c0-435a-86b9-252324cdb7c2\",\"context_id\":\"efa0755c-2ba2-4802-a69a-8a9164a02673\",\"search_received\":true,\"price_count\":0,\"payment_received\":false,\"payment_approved\":false,\"pending\":null,\"received_nonces\":[\"msg-3e2a973e445a\"],\"sent\":[{\"to\":\"search@hotel.test\",\"subject\":\"search\",\"body\":\"Paris 2 nights\",\"nonce\":\"msg-45de2b360821\",\"status\":\"accepted\"}],\"prices\":[],\"payment\":null}"
+        },
+        "is_error": false
+      },
+      "request_id": "98cf7f8f-700e-4bd4-906f-81fff6e1fc2d",
+      "ts": "2026-10-25T09:26:21.219Z"
+    },
+    {
+      "id": "cba4f9c5-3e03-45e3-9aef-f509e99d79dd",
+      "run_id": "run-20261025-092607",
+      "agent_id": "search@hotel.test",
+      "role": "search",
+      "kind": "response",
+      "title": "Agent response",
+      "data": {
+        "status": "completed",
+        "text": "I have successfully completed the task. I called inventory_lookup with city=\"Paris\" and nights=2 as specified in the ATP body, received the search results, and then called send_search_results exactly once with the formatted results. The response shows the status as \"accepted\"."
+      },
+      "request_id": "msg-45de2b360821",
+      "ts": "2026-10-25T09:26:22.506Z"
+    },
+    {
+      "id": "78b09741-ce0a-4958-a04b-3c6c72737960",
+      "run_id": "run-20261025-092607",
+      "agent_id": "travel@family.test",
+      "role": "travel",
+      "kind": "tool_input",
+      "title": "atp_send",
+      "data": {
+        "to": "rates@hotel.test",
+        "subject": "subscribe",
+        "body": "ParisGarden"
+      },
+      "request_id": "98cf7f8f-700e-4bd4-906f-81fff6e1fc2d",
+      "ts": "2026-10-25T09:26:24.188Z"
+    },
+    {
+      "id": "ba49344a-c88b-4254-ba60-a7d21c07389e",
+      "run_id": "run-20261025-092607",
+      "agent_id": "travel@family.test",
+      "role": "travel",
+      "kind": "tool_output",
+      "title": "atp_send",
+      "data": {
+        "output": {
+          "details": {
+            "status": "accepted",
+            "nonce": "msg-b30df4a725c4",
+            "timestamp": 1792920384
+          },
+          "text": "{\"status\":\"accepted\",\"nonce\":\"msg-b30df4a725c4\"}"
+        },
+        "is_error": false
+      },
+      "request_id": "98cf7f8f-700e-4bd4-906f-81fff6e1fc2d",
+      "ts": "2026-10-25T09:26:24.218Z"
+    },
+    {
+      "id": "d8724d6a-460d-4d65-a06f-35c8f2b7f28b",
+      "run_id": "run-20261025-092607",
+      "agent_id": "rates@hotel.test",
+      "role": "rates",
+      "kind": "atp_input",
+      "title": "ATP input",
+      "data": {
+        "from": "travel@family.test",
+        "to": "rates@hotel.test",
+        "subject": "subscribe",
+        "body": "ParisGarden",
+        "task_id": "364c04ad-a3c0-435a-86b9-252324cdb7c2",
+        "context_id": "efa0755c-2ba2-4802-a69a-8a9164a02673",
+        "in_reply_to": null,
+        "nonce": "msg-b30df4a725c4"
+      },
+      "request_id": "msg-b30df4a725c4",
+      "ts": "2026-10-25T09:26:24.869Z"
+    },
+    {
+      "id": "ee196a09-ee77-415a-9e8a-a86faf4abd95",
+      "run_id": "run-20261025-092607",
+      "agent_id": "travel@family.test",
+      "role": "travel",
+      "kind": "tool_input",
+      "title": "atp_receive",
+      "data": {
+        "wait_seconds": 5
+      },
+      "request_id": "98cf7f8f-700e-4bd4-906f-81fff6e1fc2d",
+      "ts": "2026-10-25T09:26:26.353Z"
+    },
+    {
+      "id": "5bd091c7-03da-4147-816b-b06644b8c4f3",
+      "run_id": "run-20261025-092607",
+      "agent_id": "rates@hotel.test",
+      "role": "rates",
+      "kind": "tool_input",
+      "title": "get_rate_schedule",
+      "data": {
+        "hotel": "ParisGarden"
+      },
+      "request_id": "msg-b30df4a725c4",
+      "ts": "2026-10-25T09:26:28.056Z"
+    },
+    {
+      "id": "e1b98c93-7197-45ab-bb61-e2f31ecf8a58",
+      "run_id": "run-20261025-092607",
+      "agent_id": "rates@hotel.test",
+      "role": "rates",
+      "kind": "tool_output",
+      "title": "get_rate_schedule",
+      "data": {
+        "output": {
+          "details": {
+            "hotel": "ParisGarden",
+            "currency": "USD",
+            "unit": "night",
+            "prices": [
+              180,
+              170,
+              190
+            ]
+          },
+          "text": "{\"hotel\":\"ParisGarden\",\"currency\":\"USD\",\"unit\":\"night\",\"prices\":[180,170,190]}"
+        },
+        "is_error": false
+      },
+      "request_id": "msg-b30df4a725c4",
+      "ts": "2026-10-25T09:26:28.057Z"
+    },
+    {
+      "id": "713a0f09-cb7d-4872-9cf9-82ac3e943649",
+      "run_id": "run-20261025-092607",
+      "agent_id": "rates@hotel.test",
+      "role": "rates",
+      "kind": "tool_input",
+      "title": "publish_rate_events",
+      "data": {
+        "hotel": "ParisGarden"
+      },
+      "request_id": "msg-b30df4a725c4",
+      "ts": "2026-10-25T09:26:30.566Z"
+    },
+    {
+      "id": "0232c992-f3ad-4816-826f-36efc70b35a4",
+      "run_id": "run-20261025-092607",
+      "agent_id": "rates@hotel.test",
+      "role": "rates",
+      "kind": "tool_output",
+      "title": "publish_rate_events",
+      "data": {
+        "output": {
+          "details": [
+            {
+              "status": "accepted",
+              "nonce": "msg-b7a8228dfb98",
+              "timestamp": 1792920390
+            },
+            {
+              "status": "accepted",
+              "nonce": "msg-62c6c208822e",
+              "timestamp": 1792920390
+            },
+            {
+              "status": "accepted",
+              "nonce": "msg-b8ba2ad71c01",
+              "timestamp": 1792920391
+            }
+          ],
+          "text": "[{\"status\":\"accepted\",\"nonce\":\"msg-b7a8228dfb98\",\"timestamp\":1792920390},{\"status\":\"accepted\",\"nonce\":\"msg-62c6c208822e\",\"timestamp\":1792920390},{\"status\":\"accepted\",\"nonce\":\"msg-b8ba2ad71c01\",\"timestamp\":1792920391}]"
+        },
+        "is_error": false
+      },
+      "request_id": "msg-b30df4a725c4",
+      "ts": "2026-10-25T09:26:31.718Z"
+    },
+    {
+      "id": "1d71f91b-b82e-4548-a1d6-f03c5a0307cc",
+      "run_id": "run-20261025-092607",
+      "agent_id": "travel@family.test",
+      "role": "travel",
+      "kind": "tool_output",
+      "title": "atp_receive",
+      "data": {
+        "output": {
+          "details": {
+            "task_id": "364c04ad-a3c0-435a-86b9-252324cdb7c2",
+            "context_id": "efa0755c-2ba2-4802-a69a-8a9164a02673",
+            "search_received": true,
+            "price_count": 3,
+            "payment_received": false,
+            "payment_approved": false,
+            "pending": null,
+            "received_nonces": [
+              "msg-3e2a973e445a",
+              "msg-b7a8228dfb98",
+              "msg-62c6c208822e",
+              "msg-b8ba2ad71c01"
+            ],
+            "sent": [
+              {
+                "to": "search@hotel.test",
+                "subject": "search",
+                "body": "Paris 2 nights",
+                "nonce": "msg-45de2b360821",
+                "status": "accepted"
+              },
+              {
+                "to": "rates@hotel.test",
+                "subject": "subscribe",
+                "body": "ParisGarden",
+                "nonce": "msg-b30df4a725c4",
+                "status": "accepted"
+              }
+            ],
+            "prices": [
+              {
+                "kind": "price-change",
+                "event_index": 1,
+                "total_events": 3,
+                "hotel": "ParisGarden",
+                "price": 180,
+                "currency": "USD",
+                "unit": "night"
+              },
+              {
+                "kind": "price-change",
+                "event_index": 2,
+                "total_events": 3,
+                "hotel": "ParisGarden",
+                "price": 170,
+                "currency": "USD",
+                "unit": "night"
+              },
+              {
+                "kind": "price-change",
+                "event_index": 3,
+                "total_events": 3,
+                "hotel": "ParisGarden",
+                "price": 190,
+                "currency": "USD",
+                "unit": "night"
+              }
+            ],
+            "payment": null
+          },
+          "text": "{\"task_id\":\"364c04ad-a3c0-435a-86b9-252324cdb7c2\",\"context_id\":\"efa0755c-2ba2-4802-a69a-8a9164a02673\",\"search_received\":true,\"price_count\":3,\"payment_received\":false,\"payment_approved\":false,\"pending\":null,\"received_nonces\":[\"msg-3e2a973e445a\",\"msg-b7a8228dfb98\",\"msg-62c6c208822e\",\"msg-b8ba2ad71c01\"],\"sent\":[{\"to\":\"search@hotel.test\",\"subject\":\"search\",\"body\":\"Paris 2 nights\",\"nonce\":\"msg-45de2b360821\",\"status\":\"accepted\"},{\"to\":\"rates@hotel.test\",\"subject\":\"subscribe\",\"body\":\"ParisGarden\",\"nonce\":\"msg-b30df4a725c4\",\"status\":\"accepted\"}],\"prices\":[{\"kind\":\"price-change\",\"event_index\":1,\"total_events\":3,\"hotel\":\"ParisGarden\",\"price\":180,\"currency\":\"USD\",\"unit\":\"night\"},{\"kind\":\"price-change\",\"event_index\":2,\"total_events\":3,\"hotel\":\"ParisGarden\",\"price\":170,\"currency\":\"USD\",\"unit\":\"night\"},{\"kind\":\"price-change\",\"event_index\":3,\"total_events\":3,\"hotel\":\"ParisGarden\",\"price\":190,\"currency\":\"USD\",\"unit\":\"night\"}],\"payment\":null}"
+        },
+        "is_error": false
+      },
+      "request_id": "98cf7f8f-700e-4bd4-906f-81fff6e1fc2d",
+      "ts": "2026-10-25T09:26:32.447Z"
+    },
+    {
+      "id": "cd91f908-8be2-4171-95e4-1a2ef2d942f2",
+      "run_id": "run-20261025-092607",
+      "agent_id": "rates@hotel.test",
+      "role": "rates",
+      "kind": "response",
+      "title": "Agent response",
+      "data": {
+        "status": "completed",
+        "text": "I have successfully completed the ATP subscription process for ParisGarden:\n\n1. First, I retrieved the rate schedule which shows:\n   - Hotel: ParisGarden\n   - Currency: USD\n   - Unit: night\n   - Prices: [180, 170, 190]\n\n2. Then, I published the rate events, which were accepted with three confirmation messages.\n\nThe subscription request from travel@family.test has been processed successfully."
+      },
+      "request_id": "msg-b30df4a725c4",
+      "ts": "2026-10-25T09:26:34.328Z"
+    },
+    {
+      "id": "3965c255-6752-40ba-8724-7d2ec48cc489",
+      "run_id": "run-20261025-092607",
+      "agent_id": "travel@family.test",
+      "role": "travel",
+      "kind": "tool_input",
+      "title": "atp_send",
+      "data": {
+        "to": "bill@payment.test",
+        "subject": "book+pay",
+        "body": "Booking ParisGarden for 2 nights at 170 USD per night",
+        "hotel": "ParisGarden",
+        "nights": 2,
+        "nightly_amount": 170
+      },
+      "request_id": "98cf7f8f-700e-4bd4-906f-81fff6e1fc2d",
+      "ts": "2026-10-25T09:26:37.592Z"
+    },
+    {
+      "id": "091a5515-8f49-4b8c-bc35-ea8072ea9cdf",
+      "run_id": "run-20261025-092607",
+      "agent_id": "travel@family.test",
+      "role": "travel",
+      "kind": "tool_output",
+      "title": "atp_send",
+      "data": {
+        "output": {
+          "details": {
+            "status": "accepted",
+            "nonce": "msg-e227d27a6008",
+            "timestamp": 1792920397
+          },
+          "text": "{\"status\":\"accepted\",\"nonce\":\"msg-e227d27a6008\"}"
+        },
+        "is_error": false
+      },
+      "request_id": "98cf7f8f-700e-4bd4-906f-81fff6e1fc2d",
+      "ts": "2026-10-25T09:26:37.624Z"
+    },
+    {
+      "id": "eb12daf9-27cc-43a5-9d2b-db68ec38142d",
+      "run_id": "run-20261025-092607",
+      "agent_id": "bill@payment.test",
+      "role": "bill",
+      "kind": "atp_input",
+      "title": "ATP input",
+      "data": {
+        "from": "travel@family.test",
+        "to": "bill@payment.test",
+        "subject": "book+pay",
+        "body": "{\"hotel\":\"ParisGarden\",\"nights\":2,\"nightly_amount\":170,\"currency\":\"USD\"}",
+        "task_id": "364c04ad-a3c0-435a-86b9-252324cdb7c2",
+        "context_id": "efa0755c-2ba2-4802-a69a-8a9164a02673",
+        "in_reply_to": null,
+        "nonce": "msg-e227d27a6008"
+      },
+      "request_id": "msg-e227d27a6008",
+      "ts": "2026-10-25T09:26:39.006Z"
+    },
+    {
+      "id": "0791abab-2c68-4294-bebb-d1aadfdb05a5",
+      "run_id": "run-20261025-092607",
+      "agent_id": "travel@family.test",
+      "role": "travel",
+      "kind": "tool_input",
+      "title": "atp_receive",
+      "data": {
+        "wait_seconds": 5
+      },
+      "request_id": "98cf7f8f-700e-4bd4-906f-81fff6e1fc2d",
+      "ts": "2026-10-25T09:26:39.273Z"
+    },
+    {
+      "id": "f84bbeaa-542e-439e-bd2f-9708b574b57b",
+      "run_id": "run-20261025-092607",
+      "agent_id": "bill@payment.test",
+      "role": "bill",
+      "kind": "tool_input",
+      "title": "authorize_simulated_payment",
+      "data": {
+        "hotel": "ParisGarden",
+        "nights": 2,
+        "nightly_amount": 170,
+        "currency": "USD"
+      },
+      "request_id": "msg-e227d27a6008",
+      "ts": "2026-10-25T09:26:42.994Z"
+    },
+    {
+      "id": "a7fc4bf2-3cf8-45f6-ac84-97f150a4b9ac",
+      "run_id": "run-20261025-092607",
+      "agent_id": "bill@payment.test",
+      "role": "bill",
+      "kind": "tool_output",
+      "title": "authorize_simulated_payment",
+      "data": {
+        "output": {
+          "details": {
+            "kind": "payment-result",
+            "hotel": "ParisGarden",
+            "nights": 2,
+            "nightly_amount": 170,
+            "approved": true,
+            "simulation": true,
+            "authorization_id": "sim-4d871fce",
+            "total": 340,
+            "currency": "USD",
+            "reason": "local demo policy approved"
+          },
+          "text": "{\"kind\":\"payment-result\",\"hotel\":\"ParisGarden\",\"nights\":2,\"nightly_amount\":170,\"approved\":true,\"simulation\":true,\"authorization_id\":\"sim-4d871fce\",\"total\":340,\"currency\":\"USD\",\"reason\":\"local demo policy approved\"}"
+        },
+        "is_error": false
+      },
+      "request_id": "msg-e227d27a6008",
+      "ts": "2026-10-25T09:26:42.994Z"
+    },
+    {
+      "id": "b4f055c5-aaac-4a02-92af-3462a59dad3c",
+      "run_id": "run-20261025-092607",
+      "agent_id": "bill@payment.test",
+      "role": "bill",
+      "kind": "tool_input",
+      "title": "send_payment_result",
+      "data": {
+        "subject": "Payment Authorization Result for ParisGarden",
+        "body": "Authorization approved for ParisGarden: 2 nights at $170/night (USD). Total: $340. Authorization ID: sim-4d871fce. This is a simulated demo transaction - no real financial system was used."
+      },
+      "request_id": "msg-e227d27a6008",
+      "ts": "2026-10-25T09:26:48.169Z"
+    },
+    {
+      "id": "801f3b64-bc4a-4dfd-a6ff-dc900f7b2fd6",
+      "run_id": "run-20261025-092607",
+      "agent_id": "bill@payment.test",
+      "role": "bill",
+      "kind": "tool_output",
+      "title": "send_payment_result",
+      "data": {
+        "output": {
+          "details": {
+            "status": "accepted",
+            "nonce": "msg-633e174d1004",
+            "timestamp": 1792920408
+          },
+          "text": "{\"status\":\"accepted\",\"nonce\":\"msg-633e174d1004\",\"to\":\"travel@family.test\"}"
+        },
+        "is_error": false
+      },
+      "request_id": "msg-e227d27a6008",
+      "ts": "2026-10-25T09:26:48.225Z"
+    },
+    {
+      "id": "bd02d743-98d3-42e9-9a33-9446966d91d6",
+      "run_id": "run-20261025-092607",
+      "agent_id": "travel@family.test",
+      "role": "travel",
+      "kind": "tool_output",
+      "title": "atp_receive",
+      "data": {
+        "output": {
+          "details": {
+            "task_id": "364c04ad-a3c0-435a-86b9-252324cdb7c2",
+            "context_id": "efa0755c-2ba2-4802-a69a-8a9164a02673",
+            "search_received": true,
+            "price_count": 3,
+            "payment_received": true,
+            "payment_approved": true,
+            "pending": null,
+            "received_nonces": [
+              "msg-3e2a973e445a",
+              "msg-b7a8228dfb98",
+              "msg-62c6c208822e",
+              "msg-b8ba2ad71c01",
+              "msg-633e174d1004"
+            ],
+            "sent": [
+              {
+                "to": "search@hotel.test",
+                "subject": "search",
+                "body": "Paris 2 nights",
+                "nonce": "msg-45de2b360821",
+                "status": "accepted"
+              },
+              {
+                "to": "rates@hotel.test",
+                "subject": "subscribe",
+                "body": "ParisGarden",
+                "nonce": "msg-b30df4a725c4",
+                "status": "accepted"
+              },
+              {
+                "to": "bill@payment.test",
+                "subject": "book+pay",
+                "body": "{\"hotel\":\"ParisGarden\",\"nights\":2,\"nightly_amount\":170,\"currency\":\"USD\"}",
+                "hotel": "ParisGarden",
+                "nights": 2,
+                "nightly_amount": 170,
+                "nonce": "msg-e227d27a6008",
+                "status": "accepted"
+              }
+            ],
+            "prices": [
+              {
+                "kind": "price-change",
+                "event_index": 1,
+                "total_events": 3,
+                "hotel": "ParisGarden",
+                "price": 180,
+                "currency": "USD",
+                "unit": "night"
+              },
+              {
+                "kind": "price-change",
+                "event_index": 2,
+                "total_events": 3,
+                "hotel": "ParisGarden",
+                "price": 170,
+                "currency": "USD",
+                "unit": "night"
+              },
+              {
+                "kind": "price-change",
+                "event_index": 3,
+                "total_events": 3,
+                "hotel": "ParisGarden",
+                "price": 190,
+                "currency": "USD",
+                "unit": "night"
+              }
+            ],
+            "payment": {
+              "kind": "payment-result",
+              "hotel": "ParisGarden",
+              "nights": 2,
+              "nightly_amount": 170,
+              "approved": true,
+              "simulation": true,
+              "authorization_id": "sim-4d871fce",
+              "total": 340,
+              "currency": "USD",
+              "reason": "local demo policy approved"
+            }
+          },
+          "text": "{\"task_id\":\"364c04ad-a3c0-435a-86b9-252324cdb7c2\",\"context_id\":\"efa0755c-2ba2-4802-a69a-8a9164a02673\",\"search_received\":true,\"price_count\":3,\"payment_received\":true,\"payment_approved\":true,\"pending\":null,\"received_nonces\":[\"msg-3e2a973e445a\",\"msg-b7a8228dfb98\",\"msg-62c6c208822e\",\"msg-b8ba2ad71c01\",\"msg-633e174d1004\"],\"sent\":[{\"to\":\"search@hotel.test\",\"subject\":\"search\",\"body\":\"Paris 2 nights\",\"nonce\":\"msg-45de2b360821\",\"status\":\"accepted\"},{\"to\":\"rates@hotel.test\",\"subject\":\"subscribe\",\"body\":\"ParisGarden\",\"nonce\":\"msg-b30df4a725c4\",\"status\":\"accepted\"},{\"to\":\"bill@payment.test\",\"subject\":\"book+pay\",\"body\":\"{\\\"hotel\\\":\\\"ParisGarden\\\",\\\"nights\\\":2,\\\"nightly_amount\\\":170,\\\"currency\\\":\\\"USD\\\"}\",\"hotel\":\"ParisGarden\",\"nights\":2,\"nightly_amount\":170,\"nonce\":\"msg-e227d27a6008\",\"status\":\"accepted\"}],\"prices\":[{\"kind\":\"price-change\",\"event_index\":1,\"total_events\":3,\"hotel\":\"ParisGarden\",\"price\":180,\"currency\":\"USD\",\"unit\":\"night\"},{\"kind\":\"price-change\",\"event_index\":2,\"total_events\":3,\"hotel\":\"ParisGarden\",\"price\":170,\"currency\":\"USD\",\"unit\":\"night\"},{\"kind\":\"price-change\",\"event_index\":3,\"total_events\":3,\"hotel\":\"ParisGarden\",\"price\":190,\"currency\":\"USD\",\"unit\":\"night\"}],\"payment\":{\"kind\":\"payment-result\",\"hotel\":\"ParisGarden\",\"nights\":2,\"nightly_amount\":170,\"approved\":true,\"simulation\":true,\"authorization_id\":\"sim-4d871fce\",\"total\":340,\"currency\":\"USD\",\"reason\":\"local demo policy approved\"}}"
+        },
+        "is_error": false
+      },
+      "request_id": "98cf7f8f-700e-4bd4-906f-81fff6e1fc2d",
+      "ts": "2026-10-25T09:26:49.515Z"
+    },
+    {
+      "id": "35e36b05-c4b1-4cd3-8bb8-37ec5d844df1",
+      "run_id": "run-20261025-092607",
+      "agent_id": "bill@payment.test",
+      "role": "bill",
+      "kind": "response",
+      "title": "Agent response",
+      "data": {
+        "status": "completed",
+        "text": "The payment result has been successfully sent back to travel@family.test. The simulated payment authorization for ParisGarden (2 nights at $170/night, total $340 USD) was approved with authorization ID sim-4d871fce."
+      },
+      "request_id": "msg-e227d27a6008",
+      "ts": "2026-10-25T09:26:50.737Z"
+    },
+    {
+      "id": "3192967f-63fa-489a-a153-1d264c8619aa",
+      "run_id": "run-20261025-092607",
+      "agent_id": "travel@family.test",
+      "role": "travel",
+      "kind": "response",
+      "title": "Travel response",
+      "data": {
+        "text": "已完成模拟预订和付款：ParisGarden，2 晚，最低每晚 170 USD，总价 340 USD。已核验搜索结果、三条价格及付款回执（sim-4d871fce）。未发生真实扣款。"
+      },
+      "request_id": "98cf7f8f-700e-4bd4-906f-81fff6e1fc2d",
+      "ts": "2026-10-25T09:26:57.749Z"
+    }
+  ],
+  "runtime": {
+    "name": "Pi",
+    "version": "0.80.6",
+    "model": "qwen3.7-plus",
+    "status": "ready",
+    "connection": "connected",
+    "checked_at": "2026-10-25T09:26:57.749Z",
+    "connection_error": null
+  },
+  "error": null,
+  "updated_at": "2026-10-25T09:26:57.754Z",
+  "evidence": {
+    "task_id": "364c04ad-a3c0-435a-86b9-252324cdb7c2",
+    "context_id": "efa0755c-2ba2-4802-a69a-8a9164a02673",
+    "search_received": true,
+    "price_count": 3,
+    "payment_received": true,
+    "payment_approved": true,
+    "pending": null,
+    "received_nonces": [
+      "msg-3e2a973e445a",
+      "msg-b7a8228dfb98",
+      "msg-62c6c208822e",
+      "msg-b8ba2ad71c01",
+      "msg-633e174d1004"
+    ],
+    "sent": [
+      {
+        "to": "search@hotel.test",
+        "subject": "search",
+        "body": "Paris 2 nights",
+        "nonce": "msg-45de2b360821",
+        "status": "accepted"
+      },
+      {
+        "to": "rates@hotel.test",
+        "subject": "subscribe",
+        "body": "ParisGarden",
+        "nonce": "msg-b30df4a725c4",
+        "status": "accepted"
+      },
+      {
+        "to": "bill@payment.test",
+        "subject": "book+pay",
+        "body": "{\"hotel\":\"ParisGarden\",\"nights\":2,\"nightly_amount\":170,\"currency\":\"USD\"}",
+        "hotel": "ParisGarden",
+        "nights": 2,
+        "nightly_amount": 170,
+        "nonce": "msg-e227d27a6008",
+        "status": "accepted"
+      }
+    ],
+    "prices": [
+      {
+        "kind": "price-change",
+        "event_index": 1,
+        "total_events": 3,
+        "hotel": "ParisGarden",
+        "price": 180,
+        "currency": "USD",
+        "unit": "night"
+      },
+      {
+        "kind": "price-change",
+        "event_index": 2,
+        "total_events": 3,
+        "hotel": "ParisGarden",
+        "price": 170,
+        "currency": "USD",
+        "unit": "night"
+      },
+      {
+        "kind": "price-change",
+        "event_index": 3,
+        "total_events": 3,
+        "hotel": "ParisGarden",
+        "price": 190,
+        "currency": "USD",
+        "unit": "night"
+      }
+    ],
+    "payment": {
+      "kind": "payment-result",
+      "hotel": "ParisGarden",
+      "nights": 2,
+      "nightly_amount": 170,
+      "approved": true,
+      "simulation": true,
+      "authorization_id": "sim-4d871fce",
+      "total": 340,
+      "currency": "USD",
+      "reason": "local demo policy approved"
+    }
+  },
+  "error_code": null
+}

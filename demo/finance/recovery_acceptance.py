@@ -28,9 +28,9 @@ def transfer(domain):
     raise AssertionError('Communication did not recover')
 
 
-def main():
+def main(group_rounds=1):
     report={'single':[],'group':[]}
-    for group in [('family',),('hotel',),('payment',),('family','hotel','payment')]:
+    for group in [('family',),('hotel',),('payment',)]+[('family','hotel','payment')]*group_rounds:
         before=identity_hashes()
         start=time.monotonic()
         docker('restart',*['jinmi-server-'+d for d in group])
@@ -44,4 +44,8 @@ def main():
     OUT.write_text(json.dumps(report,ensure_ascii=False,indent=2),encoding='utf-8')
 
 
-if __name__=='__main__': main()
+if __name__=='__main__':
+    import argparse
+    parser=argparse.ArgumentParser()
+    parser.add_argument('--group-rounds',type=int,choices=range(1,11),default=1)
+    main(parser.parse_args().group_rounds)

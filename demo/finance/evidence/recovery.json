@@ -4,18 +4,18 @@
       "domains": [
         "family"
       ],
-      "communication_seconds": 3.3910000000032596,
+      "communication_seconds": 3.5780000000086147,
       "keys_unchanged": true,
       "transfers": [
         {
           "passed": true,
-          "elapsed_seconds": 0.2746731279985397,
-          "nonce": "msg-84af8f860b06"
+          "elapsed_seconds": 0.28143894000095315,
+          "nonce": "msg-c70d95598c87"
         },
         {
           "passed": true,
-          "elapsed_seconds": 0.28110906400252134,
-          "nonce": "msg-f622bb8ed935"
+          "elapsed_seconds": 0.276738196000224,
+          "nonce": "msg-b460ae5a9b6d"
         }
       ],
       "passed": true
@@ -24,18 +24,18 @@
       "domains": [
         "hotel"
       ],
-      "communication_seconds": 3.9219999999913853,
+      "communication_seconds": 5.10899999999674,
       "keys_unchanged": true,
       "transfers": [
         {
           "passed": true,
-          "elapsed_seconds": 0.2820266420021653,
-          "nonce": "msg-ef68936548fe"
+          "elapsed_seconds": 0.2871124260054785,
+          "nonce": "msg-1b708f4d37d9"
         },
         {
           "passed": true,
-          "elapsed_seconds": 0.2871762159993523,
-          "nonce": "msg-c08e41f2ca3b"
+          "elapsed_seconds": 0.2854401209988282,
+          "nonce": "msg-7e349e80b27c"
         }
       ],
       "passed": true
@@ -44,18 +44,18 @@
       "domains": [
         "payment"
       ],
-      "communication_seconds": 4.10899999999674,
+      "communication_seconds": 3.187999999994645,
       "keys_unchanged": true,
       "transfers": [
         {
           "passed": true,
-          "elapsed_seconds": 0.2816266329973587,
-          "nonce": "msg-495d56286280"
+          "elapsed_seconds": 0.2859336679975968,
+          "nonce": "msg-6da761f94207"
         },
         {
           "passed": true,
-          "elapsed_seconds": 0.279436564000207,
-          "nonce": "msg-5f3335d676c3"
+          "elapsed_seconds": 0.2833268800022779,
+          "nonce": "msg-f2f0eda890df"
         }
       ],
       "passed": true
@@ -68,18 +68,62 @@
         "hotel",
         "payment"
       ],
-      "communication_seconds": 6.812999999994645,
+      "communication_seconds": 6.717999999993481,
       "keys_unchanged": true,
       "transfers": [
         {
           "passed": true,
-          "elapsed_seconds": 0.2850247060050606,
-          "nonce": "msg-b370c863fef1"
+          "elapsed_seconds": 0.2826256789994659,
+          "nonce": "msg-797e2cb77274"
         },
         {
           "passed": true,
-          "elapsed_seconds": 0.27758573799656006,
-          "nonce": "msg-f3be8751ac9b"
+          "elapsed_seconds": 0.321920730995771,
+          "nonce": "msg-a4253a75e559"
+        }
+      ],
+      "passed": true
+    },
+    {
+      "domains": [
+        "family",
+        "hotel",
+        "payment"
+      ],
+      "communication_seconds": 6.64000000001397,
+      "keys_unchanged": true,
+      "transfers": [
+        {
+          "passed": true,
+          "elapsed_seconds": 0.30460047900123755,
+          "nonce": "msg-82a86fcf6a46"
+        },
+        {
+          "passed": true,
+          "elapsed_seconds": 0.2819748889960465,
+          "nonce": "msg-ea28e1724905"
+        }
+      ],
+      "passed": true
+    },
+    {
+      "domains": [
+        "family",
+        "hotel",
+        "payment"
+      ],
+      "communication_seconds": 5.98499999998603,
+      "keys_unchanged": true,
+      "transfers": [
+        {
+          "passed": true,
+          "elapsed_seconds": 0.28436733900161926,
+          "nonce": "msg-2f400018ab30"
+        },
+        {
+          "passed": true,
+          "elapsed_seconds": 0.2874877079957514,
+          "nonce": "msg-80a2a913d0ca"
         }
       ],
       "passed": true

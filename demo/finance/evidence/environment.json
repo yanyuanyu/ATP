@@ -1,0 +1,19 @@
+{
+  "host": {
+    "cpu": "Intel(R) Core(TM) i7-14650HX",
+    "cores": 16,
+    "logical_processors": 24,
+    "memory_gib": 31.73,
+    "os": "Microsoft Windows 11 家庭版 中文版",
+    "build": "26200"
+  },
+  "versions": {
+    "python": "Python 3.11.9",
+    "node": "v24.15.0",
+    "npm": "11.12.1",
+    "docker": "{\"Client\":{\"Version\":\"29.8.0\",\"ApiVersion\":\"1.56\",\"DefaultAPIVersion\":\"1.56\",\"GitCommit\":\"88096ef\",\"GoVersion\":\"go1.26.8\",\"Os\":\"windows\",\"Arch\":\"amd64\",\"BuildTime\":\"Thu Sep  3 21:53:38 2026\",\"Context\":\"desktop-linux\"},\"Server\":{\"Platform\":{\"Name\":\"Docker Desktop 4.92.0 (240144)\"},\"Version\":\"29.8.0\",\"ApiVersion\":\"1.56\",\"MinAPIVersion\":\"1.40\",\"Os\":\"linux\",\"Arch\":\"amd64\",\"Components\":[{\"Name\":\"Engine\",\"Version\":\"29.8.0\",\"Details\":{\"ApiVersion\":\"1.56\",\"Arch\":\"amd64\",\"BuildTime\":\"Thu Sep  3 21:51:20 2026\",\"Experimental\":\"false\",\"GitCommit\":\"3ce5872\",\"GoVersion\":\"go1.26.8\",\"KernelVersion\":\"6.6.87.2-microsoft-standard-WSL2\",\"MinAPIVersion\":\"1.40\",\"Module\":\"github.com/moby/moby/v2\",\"ModuleVersion\":\"v2.0.0+unknown\",\"Os\":\"linux\"}},{\"Name\":\"containerd\",\"Version\":\"v2.3.5\",\"Details\":{\"GitCommit\":\"1294c24a7da8e5a793ed378161673abe94118892\"}},{\"Name\":\"runc\",\"Version\":\"1.5.1\",\"Details\":{\"GitCommit\":\"v1.5.1-0-g8f2685a4\"}},{\"Name\":\"docker-init\",\"Version\":\"0.19.0\",\"Details\":{\"GitCommit\":\"de40ad0\"}}],\"GitCommit\":\"3ce5872\",\"GoVersion\":\"go1.26.8\",\"KernelVersion\":\"6.6.87.2-microsoft-standard-WSL2\",\"BuildTime\":\"2026-09-03T21:51:20.000000000+00:00\"}}"
+  },
+  "git_commit": "de6c139d71ccab2d9408c2dea82b7139011e0fdb",
+  "branch": "jinmi-cup",
+  "source_dirty": true
+}

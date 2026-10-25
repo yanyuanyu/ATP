@@ -1,0 +1,22 @@
+{
+  "passed": true,
+  "nonce": "msg-23193767860f",
+  "first_status": 202,
+  "first_result": {
+    "status": "accepted",
+    "nonce": "msg-23193767860f",
+    "timestamp": 1792920564
+  },
+  "retry_status": 202,
+  "retry_result": {
+    "status": "already_accepted",
+    "nonce": "msg-23193767860f",
+    "timestamp": 1792920568
+  },
+  "receiver_restarted": true,
+  "message_age_seconds": 605,
+  "receiver_mailbox_rows": 1,
+  "decrypted_equal": true,
+  "reused_proof_replay_status": 400,
+  "ack_discarded_by_test_sender": true
+}

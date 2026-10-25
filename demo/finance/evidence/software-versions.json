@@ -1,0 +1,14 @@
+{
+  "atp_container": {
+    "python": "3.12.14",
+    "gmssl": "3.2.2",
+    "httpx": "0.28.1",
+    "starlette": "1.7.0",
+    "dnspython": "2.8.0"
+  },
+  "model_container_node": "v22.20.0",
+  "vite": "7.3.6",
+  "typescript": "5.9.3",
+  "pi_agent_core": "0.80.6",
+  "bind": "BIND 9.18.50 (Extended Support Version) <id:ad1a84a>"
+}

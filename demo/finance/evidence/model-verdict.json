@@ -1,0 +1,21 @@
+{
+  "passed": true,
+  "expected": {
+    "nights": 2,
+    "nightly_amount": 170,
+    "total": 340,
+    "currency": "USD"
+  },
+  "actual": {
+    "kind": "payment-result",
+    "hotel": "ParisGarden",
+    "nights": 2,
+    "nightly_amount": 170,
+    "approved": true,
+    "simulation": true,
+    "authorization_id": "sim-4d871fce",
+    "total": 340,
+    "currency": "USD",
+    "reason": "local demo policy approved"
+  }
+}
