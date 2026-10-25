@@ -1,0 +1,31 @@
+{
+  "passed": true,
+  "original_dashboard_preserved": true,
+  "original_panels": [
+    "topology",
+    "conversation",
+    "protocol",
+    "packet_detail",
+    "four_agent_audit"
+  ],
+  "financial_actions_captured_in_original_timeline": true,
+  "desktop": [
+    1440,
+    1080
+  ],
+  "mobile": [
+    390,
+    844
+  ],
+  "horizontal_overflow": false,
+  "console_errors": [],
+  "operations": [
+    "create",
+    "authorize_pay",
+    "amount_mismatch",
+    "repeat_idempotency",
+    "statement",
+    "evidence",
+    "export"
+  ]
+}

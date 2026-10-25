@@ -1,3 +1,5 @@
+> 金密杯参赛版本统一维护在 `jinmi-cup` 分支。金融订单、商户签名报价、模拟支付及账本验证见 [金融演示说明](demo/finance/README.md)。Windows 双击仓库根目录 `启动金融演示.cmd`；本机演示地址为 http://127.0.0.1:18088/ 。
+
 <div align="center">
 
 # ATP: Agent Transfer Protocol

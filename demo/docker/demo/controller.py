@@ -265,7 +265,7 @@ def _capture_packets_sync(service: str, run_id: str, loop: asyncio.AbstractEvent
         if container.status != "running":
             submit(_set_packet_sensor_state(run_id, service, "unavailable", f"container {container.status}"))
             return
-        source = PACKET_PROBE_SOURCE.read_text(encoding="utf-8")
+        source = packet_probe_source()
         result = container.exec_run(
             ["python3", "-u", "-c", source, service, str(duration)],
             stream=True,
@@ -289,6 +289,13 @@ def _capture_packets_sync(service: str, run_id: str, loop: asyncio.AbstractEvent
         submit(_set_packet_sensor_state(run_id, service, "complete"))
     except Exception as exc:
         submit(_set_packet_sensor_state(run_id, service, "unavailable", str(exc)))
+
+
+def packet_probe_source() -> str:
+    source = PACKET_PROBE_SOURCE.read_text(encoding="utf-8")
+    # Keep packet classification in sync with an isolated deployment's subnet.
+    # The original contest deployment retains its original address map.
+    return source.replace("172.28.", os.environ.get("ATP_PACKET_IP_PREFIX", "172.28."))
 
 
 async def _start_packet_probe(run_id: str, service: str, duration: int = 75) -> None:
@@ -1441,6 +1448,7 @@ async def topology_state(request: Request) -> JSONResponse:
     packet_capture = await _packet_payload(current_run_id) if current_run_id else None
     return JSONResponse({
         "containers": containers,
+        "network_prefix": os.environ.get("ATP_PACKET_IP_PREFIX", "172.28."),
         "queues": queues,
         "queue_counts": queue_counts,
         "scenario": _scenario_state,
@@ -1453,6 +1461,7 @@ async def topology_state(request: Request) -> JSONResponse:
 routes = [
     Route("/api/runs/{run_id}/report", run_report),
     Route("/", index, methods=["GET"]),
+    Route("/protocol", index, methods=["GET"]),
     Route("/api/runs", list_runs, methods=["GET"]),
     Route("/api/runs/{run_id}/trace", get_trace, methods=["GET"]),
     Route("/api/runs/{run_id}/packets", get_packet_evidence, methods=["GET"]),
@@ -1483,11 +1492,18 @@ async def shutdown_runtime() -> None:
 
 @asynccontextmanager
 async def lifespan(app):
+    finance_enabled = os.environ.get("ATP_FINANCE_ENABLED") == "1"
+    if finance_enabled:
+        from atp.finance import api as finance_api
+        await finance_api.start()
     try:
         yield
     finally:
+        if finance_enabled:
+            await finance_api.stop()
         await shutdown_runtime()
 
 
-app = Starlette(routes=routes, lifespan=lifespan)
+from atp.finance.api import routes as finance_routes
+app = Starlette(routes=[*finance_routes, *routes], lifespan=lifespan)
 app.mount("/static", StaticFiles(directory=str(Path(__file__).parent / "static")), name="static")

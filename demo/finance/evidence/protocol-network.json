@@ -1,0 +1,396 @@
+{
+  "discovery": {
+    "family.test": {
+      "host": "server-family.family.test",
+      "port": 7443,
+      "ips": [
+        "172.32.1.1"
+      ]
+    },
+    "hotel.test": {
+      "host": "server-hotel.hotel.test",
+      "port": 7443,
+      "ips": [
+        "172.32.2.1"
+      ]
+    },
+    "payment.test": {
+      "host": "server-payment.payment.test",
+      "port": 7443,
+      "ips": [
+        "172.32.3.1"
+      ]
+    }
+  },
+  "legal": [
+    {
+      "domain": "hotel",
+      "bytes": 1024,
+      "status": 202,
+      "transport": "TLCPv1.1",
+      "cipher": "ECC-SM2-SM4-CBC-SM3",
+      "decrypted_equal": true,
+      "elapsed_ms": 77.74465599504765,
+      "nonce": "msg-07a4bc233901"
+    },
+    {
+      "domain": "hotel",
+      "bytes": 1024,
+      "status": 202,
+      "transport": "TLCPv1.1",
+      "cipher": "ECC-SM2-SM4-CBC-SM3",
+      "decrypted_equal": true,
+      "elapsed_ms": 81.74602699727984,
+      "nonce": "msg-84e0d8512377"
+    },
+    {
+      "domain": "hotel",
+      "bytes": 1024,
+      "status": 202,
+      "transport": "TLCPv1.1",
+      "cipher": "ECC-SM2-SM4-CBC-SM3",
+      "decrypted_equal": true,
+      "elapsed_ms": 111.06648499844596,
+      "nonce": "msg-ff987af26bbb"
+    },
+    {
+      "domain": "hotel",
+      "bytes": 65536,
+      "status": 202,
+      "transport": "TLCPv1.1",
+      "cipher": "ECC-SM2-SM4-CBC-SM3",
+      "decrypted_equal": true,
+      "elapsed_ms": 570.3401780046988,
+      "nonce": "msg-2cfa0f0bfc02"
+    },
+    {
+      "domain": "hotel",
+      "bytes": 65536,
+      "status": 202,
+      "transport": "TLCPv1.1",
+      "cipher": "ECC-SM2-SM4-CBC-SM3",
+      "decrypted_equal": true,
+      "elapsed_ms": 803.0843300002743,
+      "nonce": "msg-71fa683b2532"
+    },
+    {
+      "domain": "hotel",
+      "bytes": 65536,
+      "status": 202,
+      "transport": "TLCPv1.1",
+      "cipher": "ECC-SM2-SM4-CBC-SM3",
+      "decrypted_equal": true,
+      "elapsed_ms": 945.8781639987137,
+      "nonce": "msg-cbf3ce691bf5"
+    },
+    {
+      "domain": "payment",
+      "bytes": 1024,
+      "status": 202,
+      "transport": "TLCPv1.1",
+      "cipher": "ECC-SM2-SM4-CBC-SM3",
+      "decrypted_equal": true,
+      "elapsed_ms": 94.60402799595613,
+      "nonce": "msg-6d767d49f9ba"
+    },
+    {
+      "domain": "payment",
+      "bytes": 1024,
+      "status": 202,
+      "transport": "TLCPv1.1",
+      "cipher": "ECC-SM2-SM4-CBC-SM3",
+      "decrypted_equal": true,
+      "elapsed_ms": 82.38519099541008,
+      "nonce": "msg-7e6b99aca23d"
+    },
+    {
+      "domain": "payment",
+      "bytes": 1024,
+      "status": 202,
+      "transport": "TLCPv1.1",
+      "cipher": "ECC-SM2-SM4-CBC-SM3",
+      "decrypted_equal": true,
+      "elapsed_ms": 91.59754099528072,
+      "nonce": "msg-a92915341df9"
+    },
+    {
+      "domain": "payment",
+      "bytes": 65536,
+      "status": 202,
+      "transport": "TLCPv1.1",
+      "cipher": "ECC-SM2-SM4-CBC-SM3",
+      "decrypted_equal": true,
+      "elapsed_ms": 648.567757998535,
+      "nonce": "msg-55b35ab41912"
+    },
+    {
+      "domain": "payment",
+      "bytes": 65536,
+      "status": 202,
+      "transport": "TLCPv1.1",
+      "cipher": "ECC-SM2-SM4-CBC-SM3",
+      "decrypted_equal": true,
+      "elapsed_ms": 763.8147800025763,
+      "nonce": "msg-42fc46b47b93"
+    },
+    {
+      "domain": "payment",
+      "bytes": 65536,
+      "status": 202,
+      "transport": "TLCPv1.1",
+      "cipher": "ECC-SM2-SM4-CBC-SM3",
+      "decrypted_equal": true,
+      "elapsed_ms": 1019.64669800509,
+      "nonce": "msg-442b2d65c976"
+    }
+  ],
+  "attacks": [
+    {
+      "type": "replay",
+      "status": 400,
+      "error": "Replay detected",
+      "rejected": true
+    },
+    {
+      "type": "replay",
+      "status": 400,
+      "error": "Replay detected",
+      "rejected": true
+    },
+    {
+      "type": "replay",
+      "status": 400,
+      "error": "Replay detected",
+      "rejected": true
+    },
+    {
+      "type": "replay",
+      "status": 400,
+      "error": "Replay detected",
+      "rejected": true
+    },
+    {
+      "type": "replay",
+      "status": 400,
+      "error": "Replay detected",
+      "rejected": true
+    },
+    {
+      "type": "replay",
+      "status": 400,
+      "error": "Replay detected",
+      "rejected": true
+    },
+    {
+      "type": "tamper",
+      "status": 403,
+      "rejected": true
+    },
+    {
+      "type": "forged_signed_identity",
+      "status": 403,
+      "rejected": true
+    },
+    {
+      "type": "tamper",
+      "status": 403,
+      "rejected": true
+    },
+    {
+      "type": "forged_signed_identity",
+      "status": 403,
+      "rejected": true
+    },
+    {
+      "type": "tamper",
+      "status": 403,
+      "rejected": true
+    },
+    {
+      "type": "forged_signed_identity",
+      "status": 403,
+      "rejected": true
+    },
+    {
+      "type": "tamper",
+      "status": 403,
+      "rejected": true
+    },
+    {
+      "type": "forged_signed_identity",
+      "status": 403,
+      "rejected": true
+    },
+    {
+      "type": "tamper",
+      "status": 403,
+      "rejected": true
+    },
+    {
+      "type": "forged_signed_identity",
+      "status": 403,
+      "rejected": true
+    },
+    {
+      "type": "replay",
+      "status": 400,
+      "error": "Replay detected",
+      "rejected": true
+    },
+    {
+      "type": "replay",
+      "status": 400,
+      "error": "Replay detected",
+      "rejected": true
+    },
+    {
+      "type": "replay",
+      "status": 400,
+      "error": "Replay detected",
+      "rejected": true
+    },
+    {
+      "type": "replay",
+      "status": 400,
+      "error": "Replay detected",
+      "rejected": true
+    },
+    {
+      "type": "replay",
+      "status": 400,
+      "error": "Replay detected",
+      "rejected": true
+    },
+    {
+      "type": "replay",
+      "status": 400,
+      "error": "Replay detected",
+      "rejected": true
+    },
+    {
+      "type": "tamper",
+      "status": 403,
+      "rejected": true
+    },
+    {
+      "type": "forged_signed_identity",
+      "status": 403,
+      "rejected": true
+    },
+    {
+      "type": "tamper",
+      "status": 403,
+      "rejected": true
+    },
+    {
+      "type": "forged_signed_identity",
+      "status": 403,
+      "rejected": true
+    },
+    {
+      "type": "tamper",
+      "status": 403,
+      "rejected": true
+    },
+    {
+      "type": "forged_signed_identity",
+      "status": 403,
+      "rejected": true
+    },
+    {
+      "type": "tamper",
+      "status": 403,
+      "rejected": true
+    },
+    {
+      "type": "forged_signed_identity",
+      "status": 403,
+      "rejected": true
+    },
+    {
+      "type": "tamper",
+      "status": 403,
+      "rejected": true
+    },
+    {
+      "type": "forged_signed_identity",
+      "status": 403,
+      "rejected": true
+    },
+    {
+      "type": "local_identity_mismatch",
+      "status": 403,
+      "rejected": true
+    },
+    {
+      "type": "unauthorized_credentials",
+      "status": 401,
+      "rejected": true
+    },
+    {
+      "type": "unauthorized_destination",
+      "status": 403,
+      "rejected": true
+    },
+    {
+      "type": "local_identity_mismatch",
+      "status": 403,
+      "rejected": true
+    },
+    {
+      "type": "unauthorized_credentials",
+      "status": 401,
+      "rejected": true
+    },
+    {
+      "type": "unauthorized_destination",
+      "status": 403,
+      "rejected": true
+    },
+    {
+      "type": "local_identity_mismatch",
+      "status": 403,
+      "rejected": true
+    },
+    {
+      "type": "unauthorized_credentials",
+      "status": 401,
+      "rejected": true
+    },
+    {
+      "type": "unauthorized_destination",
+      "status": 403,
+      "rejected": true
+    },
+    {
+      "type": "local_identity_mismatch",
+      "status": 403,
+      "rejected": true
+    },
+    {
+      "type": "unauthorized_credentials",
+      "status": 401,
+      "rejected": true
+    },
+    {
+      "type": "unauthorized_destination",
+      "status": 403,
+      "rejected": true
+    },
+    {
+      "type": "local_identity_mismatch",
+      "status": 403,
+      "rejected": true
+    },
+    {
+      "type": "unauthorized_credentials",
+      "status": 401,
+      "rejected": true
+    },
+    {
+      "type": "unauthorized_destination",
+      "status": 403,
+      "rejected": true
+    }
+  ]
+}

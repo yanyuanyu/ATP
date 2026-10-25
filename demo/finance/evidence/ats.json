@@ -1,0 +1,27 @@
+[
+  {
+    "status": 403,
+    "error": "ATS validation failed",
+    "rejected": true
+  },
+  {
+    "status": 403,
+    "error": "ATS validation failed",
+    "rejected": true
+  },
+  {
+    "status": 403,
+    "error": "ATS validation failed",
+    "rejected": true
+  },
+  {
+    "status": 403,
+    "error": "ATS validation failed",
+    "rejected": true
+  },
+  {
+    "status": 403,
+    "error": "ATS validation failed",
+    "rejected": true
+  }
+]

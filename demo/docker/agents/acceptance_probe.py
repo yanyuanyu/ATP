@@ -39,12 +39,21 @@ def keys():
 def aad(m):
     return message_aad(from_id=m.from_id,to_id=m.to_id,timestamp=m.timestamp,nonce=m.nonce,message_type=m.type)
 
+def financial_payload(size):
+    """Exactly sized financial JSON; padding represents attached order details."""
+    payload = {'kind':'simulated-payment-request','order_id':'JM-PROTOCOL-TEST',
+               'payer':'buyer@family.test','payee':'merchant-demo-001',
+               'amount_fen':34000,'currency':'CNY','padding':''}
+    payload['padding'] = 'x' * (size-len(json.dumps(payload,separators=(',',':')).encode()))
+    assert len(json.dumps(payload,separators=(',',':')).encode()) == size
+    return payload
+
 def benchmark():
     private, public = keys()
     result = {'environment': {'python': platform.python_version(), 'platform': platform.platform(), 'cpu_count': os.cpu_count(), 'gmssl': importlib.metadata.version('gmssl'), 'cpu': next((line.split(':',1)[1].strip() for line in Path('/proc/cpuinfo').read_text().splitlines() if line.startswith('model name')), '')}, 'samples': []}
     for size, count in [(1024,50),(65536,20)]:
         # UTF-8 serialized plaintext is exactly size bytes, including JSON.
-        payload = {'body':'x'*(size-11)}
+        payload = financial_payload(size)
         assert len(json.dumps(payload,separators=(',',':')).encode()) == size
         m=ATPMessage.create('audit@family.test','audit@hotel.test',payload)
         enc=[]; dec=[]
@@ -54,7 +63,7 @@ def benchmark():
             assert plain==payload
             if i>=2: enc.append((t1-t)*1000);dec.append((t2-t1)*1000)
         combined=[a+b for a,b in zip(enc,dec)]
-        result['samples'].append({'plaintext_bytes':size,'n':count,'warmups':2,'encrypt_mean_ms':statistics.mean(enc),'decrypt_mean_ms':statistics.mean(dec),'roundtrip_mean_ms':statistics.mean(combined),'roundtrip_max_ms':max(combined),'roundtrip_p95_ms':sorted(combined)[int(.95*len(combined))-1],'limit_ms':100 if size==1024 else 2000,'all_equal':True})
+        result['samples'].append({'plaintext_bytes':size,'n':count,'warmups':2,'encrypt_mean_ms':statistics.mean(enc),'decrypt_mean_ms':statistics.mean(dec),'roundtrip_mean_ms':statistics.mean(combined),'roundtrip_max_ms':max(combined),'roundtrip_p95_ms':sorted(combined)[int(.95*len(combined))-1],'limit_ms':100 if size==1024 else 2000,'all_equal':True,'encrypt_samples_ms':enc,'decrypt_samples_ms':dec,'combined_samples_ms':combined})
     print(json.dumps(result))
     assert all(row['all_equal'] and row['roundtrip_mean_ms'] <= row['limit_ms'] for row in result['samples']), 'Crypto performance limit exceeded'
 
@@ -73,7 +82,7 @@ async def network():
             url=f'https://server-{domain}.{domain}.test:7443{PREFIX}'
             for size in [1024,65536]:
                 for i in range(3):
-                    payload={'body':'x'*(size-11)}
+                    payload=financial_payload(size)
                     m=ATPMessage.create(f'{agent}@family.test',f'{agent}@{domain}.test',payload)
                     m.payload=encrypt_payload(payload,recipient_public_key=records[domain],aad=aad(m));signed=signer.sign(m).to_dict()
                     t=time.perf_counter()
@@ -84,9 +93,9 @@ async def network():
                     response=await client.post(url+'/message',json=signed)
                     result['attacks'].append({'type':'replay','status':response.status_code,'error':response.json().get('error'),'rejected':response.status_code==400 and response.json().get('error')=='Replay detected'})
             for i in range(5):
-                m=ATPMessage.create('acceptance@family.test',f'acceptance@{domain}.test',{'body':'original'})
+                m=ATPMessage.create('acceptance@family.test',f'acceptance@{domain}.test',financial_payload(1024))
                 signed=signer.sign(m).to_dict()
-                altered=copy.deepcopy(signed);altered['payload']['body']='tampered'
+                altered=copy.deepcopy(signed);altered['payload']['amount_fen']=1
                 response=await client.post(url+'/message',json=altered)
                 result['attacks'].append({'type':'tamper','status':response.status_code,'rejected':response.status_code==403})
                 forged=copy.deepcopy(signed);forged['from']='victim@family.test'

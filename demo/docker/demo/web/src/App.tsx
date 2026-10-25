@@ -51,6 +51,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
+import FinancePanel from "./FinancePanel"
 
 type RunInfo = {
   run_id: string
@@ -140,6 +141,7 @@ type PacketCaptureState = {
 
 type TopologyState = {
   containers: Record<string, string>
+  network_prefix?: string
   queue_counts: Record<string, QueueCount>
   scenario: ScenarioState
   chat?: ChatState
@@ -578,9 +580,9 @@ function TopologyDiagram({ topology, capture }: { topology?: TopologyState; capt
         </g>
 
         {[
-          ["family", 20, "family.test", "172.28.1.0/24"],
-          ["hotel", 325, "hotel.test", "172.28.2.0/24"],
-          ["payment", 630, "payment.test", "172.28.3.0/24"],
+          ["family", 20, "family.test", `${topology?.network_prefix || "172.28."}1.0/24`],
+          ["hotel", 325, "hotel.test", `${topology?.network_prefix || "172.28."}2.0/24`],
+          ["payment", 630, "payment.test", `${topology?.network_prefix || "172.28."}3.0/24`],
         ].map(([name, x, title, address]) => (
           <g key={String(name)} className={`domain domain-${name}`}>
             <rect className="domain-box" x={Number(x)} y="120" width="290" height="282" rx="20" />
@@ -881,6 +883,7 @@ export default function App() {
   const [scenario, setScenario] = useState<ScenarioState>(EMPTY_SCENARIO)
   const [chat, setChat] = useState<ChatState>(EMPTY_CHAT)
   const [draft, setDraft] = useState("")
+  const [financeOpen, setFinanceOpen] = useState(false)
   const [topology, setTopology] = useState<TopologyState>()
   const [controller, setController] = useState<ControllerState>("connecting")
   const topologyRequestRef = useRef(false)
@@ -1090,6 +1093,16 @@ export default function App() {
     }
   }
 
+  const captureFinance = async () => {
+    const response = await fetch("/api/control/capture-start", { method: "POST" })
+    const payload = await response.json() as {run_id?: string; capture?: PacketCaptureState; error?: string}
+    const runId = payload.run_id || (response.status === 409 ? payload.capture?.run_id : undefined)
+    if (!runId) throw new Error(payload.error || "无法开始金融业务抓包")
+    await refreshRuns(runId)
+    await loadTrace(runId)
+    setStatusMessage("金融业务使用当前抓包运行；订单与回执可在金融窗口核对。")
+  }
+
   const packetSignals = useMemo(
     () => (packetCapture?.signals || []).filter((signal) => !["probe_ready", "probe_complete"].includes(signal.evidence)),
     [packetCapture],
@@ -1121,7 +1134,7 @@ export default function App() {
         <header className="app-header">
           <div className="brand-block">
             <div className="min-w-0">
-              <div className="flex items-center gap-2"><strong>ATP 本地旅行演示</strong><Badge variant="secondary" className="hidden sm:inline-flex">IETF 126</Badge></div>
+              <div className="flex items-center gap-2"><strong>ATP 国密金融协作</strong><Badge variant="secondary" className="hidden sm:inline-flex">金密杯</Badge></div>
               <p>family.test · hotel.test · payment.test</p>
             </div>
           </div>
@@ -1152,6 +1165,7 @@ export default function App() {
           <Button variant="outline" size="sm" disabled={scenarioRunning} onClick={() => void controlOp("/api/control/payment-start", "启动支付")}><Power />启动支付</Button>
           <Button variant="outline" size="sm" disabled={scenarioRunning} onClick={() => void controlOp("/api/control/force-retry", "强制重试")}><RotateCcw />强制重试</Button>
           <Button variant="ghost" size="sm" disabled={scenarioRunning || chatBusy} onClick={() => void controlOp("/api/control/soft-reset", "软重置")}><Database />软重置</Button>
+          <Button variant="outline" size="sm" disabled={scenarioRunning || chatBusy} onClick={() => setFinanceOpen(true)}><ShieldCheck />金融订单与账本</Button>
           <span className="ml-auto hidden text-xs text-muted-foreground xl:inline">智能体目标来自对话；故障注入仍需显式触发。</span>
         </div>
 
@@ -1237,6 +1251,8 @@ export default function App() {
 
           <AgentAuditPanel chat={chat} />
         </main>
+
+        <FinancePanel open={financeOpen} onClose={() => setFinanceOpen(false)} onCapture={captureFinance} />
 
         <footer className="status-bar">
           <span className="flex items-center gap-2"><span className={cn("size-1.5 rounded-full", chatBusy || packetCapture?.status === "capturing" ? "animate-pulse bg-emerald-500" : "bg-muted-foreground")} />智能体 · {statusLabel(chat.status)} · AF_PACKET {packetCapture?.count || 0}</span>

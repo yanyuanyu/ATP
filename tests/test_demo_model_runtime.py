@@ -11,6 +11,15 @@ import pytest
 pytest.importorskip('docker')
 
 
+def test_packet_probe_map_follows_isolated_network(controller, monkeypatch):
+    monkeypatch.delenv('ATP_PACKET_IP_PREFIX', raising=False)
+    assert '172.28.1.1' in controller.packet_probe_source()
+    monkeypatch.setenv('ATP_PACKET_IP_PREFIX', '172.32.')
+    source = controller.packet_probe_source()
+    assert '172.32.1.1' in source
+    assert '172.28.' not in source
+
+
 @pytest.fixture
 def controller(tmp_path, monkeypatch):
     monkeypatch.setenv('ATP_TRACES_DIR', str(tmp_path))

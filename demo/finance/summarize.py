@@ -1,0 +1,73 @@
+"""Generate report-ready Markdown from measured JSON/JUnit, never fixed metrics."""
+import hashlib
+import json
+import platform
+from pathlib import Path
+import subprocess
+from xml.etree import ElementTree as E
+
+ROOT=Path(__file__).resolve().parents[2]
+OUT=Path(__file__).parent/"evidence"
+
+
+def load(name):
+    return json.loads((OUT/name).read_text(encoding='utf-8'))
+
+
+def main():
+    network,crypto,finance,recovery=map(load,['protocol-network.json','crypto-performance.json','finance-acceptance.json','recovery.json'])
+    suite=E.parse(OUT/'python-tests.xml').getroot().find('testsuite')
+    assert all(suite.get(k)=='0' for k in ['failures','errors','skipped'])
+    assert finance['passed'] and load('browser-test.json')['passed']
+    rows=['# 金密杯金融协作版本测试结果','',
+          '本文件依据当前仓库重新执行的测试整理，供报告第五部分引用。所有业务均为虚构订单和模拟账本，不发生真实扣款。','',
+          '| 验证项目 | 本次实测 | 原始证据 |','|---|---|---|',
+          f"| Python全量回归 | {suite.get('tests')}项通过，0失败、0错误、0跳过 | python-tests.xml |",
+          '| 新增金融业务与接口测试 | 38项通过，含16个并发重复付款只记账一次、回执关联、持久化回复队列、授权与跨站校验 | finance-unit.xml |',
+          '| 原有Pi模型运行时离线测试 | 15项通过；未调用外部收费模型 | guards.test.mjs / runtime.test.mjs |',
+          '| TLCP Go网关测试 | 4项通过 | main_test.go |',
+          f"| 合法跨域投递 | {len(network['legal'])}次成功；TLCPv1.1 / ECC-SM2-SM4-CBC-SM3；解密内容一致 | protocol-network.json |",
+          f"| 协议异常 | {len(network['attacks'])}个全部拒绝，含金额篡改、重放、签名后身份冒用等 | protocol-network.json |",
+          '| ATS越权来源 | 5个全部403拒绝，签名完整但来源未授权 | ats.json |',
+          f"| 金融端到端验收 | {len(finance['tests'])}项通过：报价、业务拒绝后余额不变、成功记账、订单幂等、重启持久化、支付域离线恢复 | finance-acceptance.json |",
+          '| 浏览器 | 订单、授权模拟支付、异常验证、账本、证据与JSON导出通过；1440px桌面与390px手机无横向溢出、无页面脚本错误 | browser-test.json / PNG截图 |','',
+          '## 密码运算性能','',
+          '| 明文金融载荷 | 预热次数 | 正式次数 | 平均耗时 | P95 | 最大值 |','|---|---|---|---|---|---|']
+    for r in crypto['samples']:
+        rows.append(f"| {r['plaintext_bytes']}字节 | {r['warmups']} | {r['n']} | {r['roundtrip_mean_ms']:.2f} ms | {r['roundtrip_p95_ms']:.2f} ms | {r['roundtrip_max_ms']:.2f} ms |")
+    rows+=['','原始70组逐次测量值保存在crypto-performance.json。载荷包含订单编号、付款方、收款方、金额和币种，附加填充后精确达到目标长度。计时为载荷加密/解密完整调用，包括SM2会话密钥封装/解封、SM4及完整性处理，不包含消息签名、网络传输、排队、取信与业务记账。100ms及2s是作品自定验证目标。','',
+           '## 故障恢复','', '| 场景 | 实测耗时 | 验证依据 |','|---|---|---|']
+    for r in recovery['single']+recovery['group']:
+        rows.append(f"| {'、'.join(r['domains'])} ATP服务重启 | {r['communication_seconds']:.3f} s | 真实跨域投递和解密成功，身份密钥一致 |")
+    for r in finance['tests']:
+        if r['name']=='payment_domain_offline_queue_recovery':
+            rows.append(f"| 支付域离线积压恢复 | {r['seconds']:.3f} s | 同一订单完成模拟支付，账本仅一条记录 |")
+    rows+=['','以上为指定环境和本次有限样例的结果，30s是作品自定恢复目标，不推断任意负载下的保证。','',
+           '## 与第五章结构对应','',
+           '- 5.1测试方案：Windows11 / Docker Linux、三域网络、用户/商户/支付智能体、确定性金融场景和有限异常样例。环境细节见provenance.json及crypto-performance.json。',
+           '- 5.2.1网络发现与跨域加密投递：protocol-network.json。',
+           '- 5.2.2身份认证与安全防护：协议层47个异常、ATS5个来源异常，与金融业务层金额/收款方/报价签名/授权拒绝分别列出。',
+           '- 5.2.3消息交互与故障恢复：报价事件、支付请求响应、recovery.json及金融离线恢复记录。',
+           '- 5.2.4协作与可视化：主页面保留原聊天、拓扑、协议路径、包头和四智能体执行视图；工具栏金融窗口展示确定性业务操作，真实抓包在原时间线显示。原LLM聊天直接保留在主页。original-chat-smoke.json记录恢复后的一次真实模型问候请求成功；这不等于金融业务由模型自主执行，金融验收仍依据其独立业务记录。',
+           '- 5.3性能测试：使用本轮金融载荷及原始70组数据，区分密码运算与完整业务耗时。',
+           '- 5.4汇总：采用本次JSON/JUnit和PNG截图，不与旧密码竞赛报告数字混用。','',
+           '## 实现边界','',
+           '商户业务签名使用专用SM2密钥，支付服务预置信任对应公钥。用户在本机页面明确授权，控制器使用演示账户身份发送ATP请求；不是银行级身份核验或真实账户授权。模拟账本使用SQLite事务、余额条件更新和订单唯一约束，证明的是该账本内一次记账；ATP服务会在所属域解密业务消息。',
+           '', 'Python测试有一条现有Starlette/httpx弃用提示，不影响通过结果。']
+    (OUT/'测试结果与报告对应.md').write_text('\n'.join(rows)+'\n',encoding='utf-8')
+    files={}
+    for directory in ['src/atp/finance','tests','demo/finance','demo/docker/demo/web/src']:
+        for f in (ROOT/directory).rglob('*'):
+            if f.is_file() and not any(x in f.parts for x in ['runtime','evidence','__pycache__','node_modules']):
+                files[f.relative_to(ROOT).as_posix()]=hashlib.sha256(f.read_bytes()).hexdigest()
+    def docker(*args):
+        return subprocess.run(['docker',*args],capture_output=True,text=True,check=True).stdout.strip()
+    provenance={'host':platform.platform(),'python':platform.python_version(),'source_sha256':files,'tests':dict(suite.attrib),
+                'docker_server':docker('version','--format','{{.Server.Version}}'),
+                'core_image':docker('image','inspect','atp-jinmi-core:local','--format','{{.Id}}'),
+                'controller_image':docker('image','inspect','atp-jinmi-demo:local','--format','{{.Id}}')}
+    (OUT/'provenance.json').write_text(json.dumps(provenance,ensure_ascii=False,indent=2),encoding='utf-8')
+    print('Test report and provenance saved')
+
+
+if __name__=='__main__': main()

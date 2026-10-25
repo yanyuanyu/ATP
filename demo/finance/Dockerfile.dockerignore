@@ -1,0 +1,10 @@
+**
+!src/
+!src/**
+!demo/
+!demo/docker/
+!demo/docker/demo/
+!demo/docker/demo/**
+demo/docker/demo/web/node_modules
+**/__pycache__
+**/*.pyc
