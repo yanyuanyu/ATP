@@ -159,6 +159,10 @@ class Hub:
             elif row["operation"] == "finance.pay":
                 if body.get("kind") != "payment-result" or body.get("simulation") is not True or body.get("order_id") != row["order_id"]:
                     raise FinanceError("INVALID_RECEIPT", "支付回执未通过关联校验")
+                if type(body.get("approved")) is not bool:
+                    raise FinanceError("INVALID_RECEIPT", "支付回执批准状态须为布尔值")
+                if body["approved"] is False and (not isinstance(body.get("code"), str) or not body["code"].strip()):
+                    raise FinanceError("INVALID_RECEIPT", "拒付回执须包含有效的拒付代码")
                 if row["expected"]:
                     passed = ((body.get("approved") is True and body.get("duplicate") is True) if row["expected"] == "IDEMPOTENT"
                               else body.get("approved") is False and body.get("code") == row["expected"])

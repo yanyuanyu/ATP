@@ -1,5 +1,6 @@
 """Fault injection at the HTTP/business persistence boundary; no live services."""
 import importlib.util
+import copy
 import json
 import sqlite3
 from pathlib import Path
@@ -165,3 +166,71 @@ def test_role_credentials_and_legacy_compatibility(tmp_path):
     legacy = tmp_path/'legacy'; legacy.mkdir()
     (legacy/'mailbox-password').write_text('existing-account-secret')
     assert set(module.mailbox_passwords(legacy).values()) == {'existing-account-secret'}
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('case', [
+    'missing', 'null', 'string', 'one', 'zero', 'list', 'object',
+    'rejection-no-code', 'rejection-empty-code', 'rejection-wrong-code-type',
+])
+async def test_malformed_payment_reply_keeps_operation_pending_until_valid_reply(tmp_path, case):
+    key = SM2PrivateKey.generate()
+    mailbox = SimpleNamespace(send=AsyncMock())
+    hub = Hub(tmp_path/'user', key.public_key(), mailbox)
+    order = await hub.create(2)
+    quote_nonce = mailbox.send.await_args.kwargs['nonce']
+    quotes = MerchantBook(tmp_path/'merchant.db', key).quote(
+        {k: order[k] for k in ('order_id', 'sku', 'quantity')}, BUYER)
+    for q in quotes:
+        await hub.receive(reply(MERCHANT, quote_nonce, order['order_id'], q))
+    await hub.pay(order['order_id'])
+    request = mailbox.send.await_args.args[2]
+    payment_nonce = mailbox.send.await_args.kwargs['nonce']
+    ledger = PaymentLedger(tmp_path/'ledger.db', key.public_key())
+    valid = ledger.pay(request, BUYER)
+    malformed = copy.deepcopy(valid)
+    if case == 'missing':
+        malformed.pop('approved')
+    elif case.startswith('rejection-'):
+        malformed['approved'] = False
+        if case == 'rejection-empty-code':
+            malformed['code'] = ' '
+        elif case == 'rejection-wrong-code-type':
+            malformed['code'] = 123
+    else:
+        malformed['approved'] = {'null': None, 'string': 'true', 'one': 1,
+                                 'zero': 0, 'list': [], 'object': {}}[case]
+    await hub.receive(reply(CASHIER, payment_nonce, order['order_id'], malformed))
+    assert hub.order(order['order_id'])['status'] == 'PAYMENT_PENDING'
+    with connect(hub.db) as db:
+        assert db.execute('SELECT done FROM operations WHERE operation=?', ('finance.pay',)).fetchone()[0] == 0
+    assert hub.snapshot()['events'][0]['kind'] == 'invalid_reply'
+    await hub.receive(reply(CASHIER, payment_nonce, order['order_id'], valid))
+    assert hub.order(order['order_id'])['status'] == 'PAID'
+    with connect(hub.db) as db:
+        assert db.execute('SELECT done FROM operations WHERE operation=?', ('finance.pay',)).fetchone()[0] == 1
+    assert len(ledger.snapshot()['payments']) == 1
+
+
+@pytest.mark.asyncio
+async def test_valid_payment_rejection_finishes_operation(tmp_path):
+    key = SM2PrivateKey.generate()
+    mailbox = SimpleNamespace(send=AsyncMock())
+    hub = Hub(tmp_path/'user', key.public_key(), mailbox)
+    order = await hub.create(2)
+    nonce = mailbox.send.await_args.kwargs['nonce']
+    quotes = MerchantBook(tmp_path/'merchant.db', key).quote(
+        {k: order[k] for k in ('order_id', 'sku', 'quantity')}, BUYER)
+    for q in quotes:
+        await hub.receive(reply(MERCHANT, nonce, order['order_id'], q))
+    await hub.pay(order['order_id'])
+    request = mailbox.send.await_args.args[2]
+    nonce = mailbox.send.await_args.kwargs['nonce']
+    ledger = PaymentLedger(tmp_path/'ledger.db', key.public_key(), initial_balance=0)
+    rejected = ledger.pay(request, BUYER)
+    assert rejected['code'] == 'INSUFFICIENT_FUNDS'
+    await hub.receive(reply(CASHIER, nonce, order['order_id'], rejected))
+    assert hub.order(order['order_id'])['status'] == 'REJECTED'
+    with connect(hub.db) as db:
+        assert db.execute('SELECT done FROM operations WHERE operation=?', ('finance.pay',)).fetchone()[0] == 1
+    assert ledger.snapshot()['payments'] == []
