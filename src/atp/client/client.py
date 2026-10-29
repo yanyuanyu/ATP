@@ -46,6 +46,8 @@ class ATPClient:
         payload: dict | None = None,
         body: str | None = None,
         subject: str | None = None,
+        *,
+        nonce: str | None = None,
     ) -> dict:
         """Build and send a message (unsigned).
 
@@ -62,6 +64,8 @@ class ATPClient:
                 payload["subject"] = subject
 
         msg = ATPMessage.create(from_id=self._agent_id, to_id=to, payload=payload)
+        if nonce is not None:
+            msg.nonce = nonce
 
         # No client-side signing — Server A signs with domain key on transfer.
 
@@ -112,6 +116,7 @@ class ATPClient:
             deadline = loop.time() + timeout
             while loop.time() < deadline:
                 resp = await client.get(url, params=params, headers=headers)
+                resp.raise_for_status()
                 data = resp.json()
                 messages = data.get("messages", [])
                 if messages:
@@ -124,6 +129,7 @@ class ATPClient:
             return []
         else:
             resp = await client.get(url, params=params, headers=headers)
+            resp.raise_for_status()
             data = resp.json()
             messages = data.get("messages", [])
             last_id = data.get("last_id")

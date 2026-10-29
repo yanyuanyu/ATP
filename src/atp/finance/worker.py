@@ -63,12 +63,13 @@ async def main():
     if role == "merchant":
         private = SM2PrivateKey(Path(os.environ["ATP_MERCHANT_PRIVATE"]).read_text().strip(), public.public_key_hex)
     worker = Worker(role, Path(os.environ.get("ATP_FINANCE_DATA", "/finance")), private, public)
-    mailbox = Mailbox(MERCHANT if role == "merchant" else CASHIER, os.environ["ATP_FINANCE_SERVER"])
+    mailbox = Mailbox(MERCHANT if role == "merchant" else CASHIER, os.environ["ATP_FINANCE_SERVER"], worker.root)
     try:
         while True:
             try:
                 for message in await mailbox.recv():
                     await asyncio.to_thread(worker.process, message)
+                    mailbox.acknowledge(message)
                 await worker.flush(mailbox)
             except Exception as exc:
                 print(f"finance-{role}: {type(exc).__name__}", flush=True)

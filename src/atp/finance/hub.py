@@ -23,6 +23,10 @@ class Hub:
             CREATE TABLE IF NOT EXISTS received(nonce TEXT PRIMARY KEY);
             CREATE TABLE IF NOT EXISTS events(id INTEGER PRIMARY KEY, data TEXT NOT NULL);
             CREATE TABLE IF NOT EXISTS state(id TEXT PRIMARY KEY, data TEXT NOT NULL);
+            CREATE TABLE IF NOT EXISTS operations(id TEXT PRIMARY KEY, target TEXT NOT NULL, operation TEXT NOT NULL,
+                body TEXT NOT NULL, order_id TEXT, expected TEXT, done INTEGER NOT NULL DEFAULT 0,
+                attempts INTEGER NOT NULL DEFAULT 0, retry_at REAL NOT NULL DEFAULT 0);
+            CREATE TABLE IF NOT EXISTS attempts(nonce TEXT PRIMARY KEY, operation_id TEXT NOT NULL);
             """)
 
     def event(self, **data):
@@ -40,25 +44,53 @@ class Hub:
         with connect(self.db) as db:
             db.execute("INSERT OR REPLACE INTO orders VALUES (?,?)", (data["order_id"], json.dumps(data, ensure_ascii=False)))
 
-    async def send(self, target, operation, body, order_id=None, expected=None):
-        result = await self.mailbox.send(target, operation, body, task_id=order_id)
+    async def send(self, target, operation, body, order_id=None, expected=None, order_state=None):
+        operation_id = uuid.uuid4().hex
         with connect(self.db) as db:
-            db.execute("INSERT INTO requests VALUES (?,?,?,?,?)", (result["nonce"], order_id, target, operation, expected))
-        self.event(kind="submitted", sender=BUYER, recipient=target, operation=operation, nonce=result["nonce"], order_id=order_id,
-                   detail="已由本域ATP服务接收；等待跨域投递与业务回执")
-        return result["nonce"]
+            db.execute("BEGIN IMMEDIATE")
+            db.execute("INSERT INTO operations(id,target,operation,body,order_id,expected) VALUES (?,?,?,?,?,?)",
+                       (operation_id, target, operation, json.dumps(body), order_id, expected))
+            if order_state is not None:
+                db.execute("INSERT OR REPLACE INTO orders VALUES (?,?)", (order_id, json.dumps(order_state)))
+            db.commit()
+        return await self.submit(operation_id)
+
+    async def submit(self, operation_id):
+        # Stable business content/order, fresh transport nonce on each attempt:
+        # ATP rejects replays of the same local submission nonce.
+        nonce = "msg-" + uuid.uuid4().hex
+        with connect(self.db) as db:
+            db.execute("BEGIN IMMEDIATE")
+            op = db.execute("SELECT * FROM operations WHERE id=? AND done=0", (operation_id,)).fetchone()
+            if not op:
+                return None
+            db.execute("INSERT INTO requests VALUES (?,?,?,?,?)", (nonce, op["order_id"], op["target"], op["operation"], op["expected"]))
+            db.execute("INSERT INTO attempts VALUES (?,?)", (nonce, operation_id))
+            db.execute("UPDATE operations SET attempts=attempts+1,retry_at=? WHERE id=?",
+                       (time.time() + min(60, 5 * (op["attempts"] + 1)), operation_id))
+            db.commit()
+        try:
+            await self.mailbox.send(op["target"], op["operation"], json.loads(op["body"]), task_id=op["order_id"], nonce=nonce)
+        except Exception as exc:
+            self.event(kind="submission_uncertain", nonce=nonce, order_id=op["order_id"],
+                       detail="已持久化，等待回执或重试：" + type(exc).__name__)
+        else:
+            self.event(kind="submitted", sender=BUYER, recipient=op["target"], operation=op["operation"], nonce=nonce,
+                       order_id=op["order_id"], detail="已由本域ATP服务接收；等待跨域投递与业务回执")
+        return nonce
+
+    async def retry_pending(self):
+        with connect(self.db) as db:
+            ids = [r[0] for r in db.execute("SELECT id FROM operations WHERE done=0 AND retry_at<=? ORDER BY retry_at LIMIT 10", (time.time(),))]
+        for operation_id in ids:
+            await self.submit(operation_id)
 
     async def create(self, quantity):
         order = {"order_id": "JM-" + uuid.uuid4().hex[:16], "sku": "business-stay", "quantity": quantity}
         validate_order(order)
         order.update(status="QUOTING", quotes=[], created_at=time.time())
-        self.save(order)
-        try:
-            await self.send(MERCHANT, "finance.quote", {k: order[k] for k in ("order_id", "sku", "quantity")}, order["order_id"])
-        except Exception:
-            order["status"] = "SUBMIT_FAILED"
-            self.save(order)
-            raise
+        await self.send(MERCHANT, "finance.quote", {k: order[k] for k in ("order_id", "sku", "quantity")},
+                        order["order_id"], order_state=order)
         return order
 
     async def pay(self, order_id, variant="pay"):
@@ -89,10 +121,10 @@ class Hub:
             expected = "IDEMPOTENT"
         elif variant != "pay":
             raise FinanceError("INVALID_OPERATION", "未知验证操作")
-        await self.send(CASHIER, "finance.pay", request, order_id, expected)
         if variant == "pay":
             order.update(status="PAYMENT_PENDING", submitted_at=time.time())
-            self.save(order)
+        await self.send(CASHIER, "finance.pay", request, order_id, expected,
+                        order_state=order if variant == "pay" else None)
         return order
 
     async def receive(self, message):
@@ -100,10 +132,17 @@ class Hub:
             if db.execute("SELECT 1 FROM received WHERE nonce=?", (message.nonce,)).fetchone():
                 return
             row = db.execute("SELECT * FROM requests WHERE nonce=?", (message.payload.get("in_reply_to"),)).fetchone()
+            operation = db.execute("SELECT o.* FROM operations o JOIN attempts a ON a.operation_id=o.id WHERE a.nonce=?",
+                                   (message.payload.get("in_reply_to"),)).fetchone()
+            if operation and operation["done"]:
+                return
         if not row or message.from_id != row["target"] or message.to_id != BUYER or message.payload.get("task_id") != row["order_id"]:
             return
         try:
             body = json.loads(message.payload["body"])
+            if not isinstance(body, dict):
+                raise ValueError("业务回执须为JSON对象")
+            complete = True
             if row["operation"] == "finance.quote":
                 quote = verify_quote(body, self.public)
                 order = self.order(row["order_id"])
@@ -116,6 +155,7 @@ class Hub:
                 if len(order["quotes"]) == 3 and order["status"] == "QUOTING":
                     order["status"] = "AWAITING_AUTHORIZATION"
                 self.save(order)
+                complete = len(order["quotes"]) == 3
             elif row["operation"] == "finance.pay":
                 if body.get("kind") != "payment-result" or body.get("simulation") is not True or body.get("order_id") != row["order_id"]:
                     raise FinanceError("INVALID_RECEIPT", "支付回执未通过关联校验")
@@ -137,7 +177,11 @@ class Hub:
                 with connect(self.db) as db:
                     db.execute("INSERT OR REPLACE INTO state VALUES ('statement',?)", (json.dumps(body),))
             with connect(self.db) as db:
-                db.execute("INSERT INTO received VALUES (?)", (message.nonce,))
+                db.execute("BEGIN IMMEDIATE")
+                db.execute("INSERT OR IGNORE INTO received VALUES (?)", (message.nonce,))
+                if complete and operation:
+                    db.execute("UPDATE operations SET done=1 WHERE id=?", (operation["id"],))
+                db.commit()
             self.event(kind="received", sender=message.from_id, recipient=BUYER, nonce=message.nonce, order_id=row["order_id"],
                        request_nonce=message.payload.get("in_reply_to"), operation=row["operation"], detail=body)
         except (FinanceError, ValueError, TypeError, KeyError) as exc:
@@ -159,6 +203,8 @@ class Hub:
                     async with self.lock:
                         for message in await self.mailbox.recv():
                             await self.receive(message)
+                            self.mailbox.acknowledge(message)
+                        await self.retry_pending()
                     self.connection = {"ready": True, "error": None}
                 except Exception as exc:
                     self.connection = {"ready": False, "error": "用户域通信暂不可用：" + type(exc).__name__}

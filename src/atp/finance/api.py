@@ -24,7 +24,8 @@ async def start():
     global hub, task
     public = SM2PublicKey(Path(os.environ["ATP_MERCHANT_PUBLIC"]).read_text().strip())
     hub = Hub(Path(os.environ.get("ATP_FINANCE_DATA", "./finance-state/user")), public,
-              Mailbox(BUYER, os.environ.get("ATP_FINANCE_SERVER", "server-family.family.test:7443")))
+              Mailbox(BUYER, os.environ.get("ATP_FINANCE_SERVER", "server-family.family.test:7443"),
+                      Path(os.environ.get("ATP_FINANCE_DATA", "./finance-state/user"))))
     task = asyncio.create_task(hub.loop())
 
 

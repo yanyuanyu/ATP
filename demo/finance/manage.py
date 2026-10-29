@@ -26,6 +26,22 @@ RUNTIME = ROOT / "demo/finance/runtime"
 CONFIG = RUNTIME / "compose.json"
 
 
+def mailbox_passwords(root):
+    """Keep existing account credentials valid; isolate roles on new installs."""
+    legacy = root / "mailbox-password"
+    passwords = {}
+    for role in ("buyer", "merchant", "payment"):
+        path = root / ("mailbox-password-" + role)
+        if not path.exists():
+            # Existing ATP accounts retain their old password. Changing just the
+            # client secret would lock them out; migration requires server update.
+            path.write_text(legacy.read_text() if legacy.exists() else secrets.token_urlsafe(32))
+        passwords[role] = path.read_text()
+    if len(set(passwords.values())) != 3:
+        print("注意：沿用旧部署共享口令以兼容已有账户；尚未完成角色凭据隔离。")
+    return passwords
+
+
 def run(*args, capture=False):
     p = subprocess.run([str(a) for a in args], cwd=ROOT, check=True, capture_output=capture)
     return p.stdout.decode("utf-8").strip() if capture else ""
@@ -66,9 +82,7 @@ def initialize():
         (keys/"merchant.private").write_text(key.private_key_hex)
         (keys/"merchant.public").write_text(key.public_key_hex)
     SM2PrivateKey((keys/"merchant.private").read_text(), (keys/"merchant.public").read_text())
-    password_file = RUNTIME/"mailbox-password"
-    if not password_file.exists():
-        password_file.write_text(secrets.token_urlsafe(32))
+    passwords = mailbox_passwords(RUNTIME)
     certs = RUNTIME/"certs"
     tls_certificates(certs)
     if not (certs/"tlcp-ca.crt").exists():
@@ -100,7 +114,7 @@ def initialize():
     services["demo-controller"]["ports"][0]["published"] = "18088"
     env = services["demo-controller"]["environment"]
     env.update(ATP_FINANCE_ENABLED="1", ATP_FINANCE_DATA="/finance", ATP_MERCHANT_PUBLIC="/finance-keys/merchant.public",
-               ATP_FINANCE_PASSWORD=password_file.read_text(), ATP_FINANCE_SERVER="server-family.family.test:7443")
+               ATP_FINANCE_PASSWORD=passwords["buyer"], ATP_FINANCE_SERVER="server-family.family.test:7443")
     env["ATP_PACKET_IP_PREFIX"] = "172.32."
     services["demo-controller"]["volumes"].extend([
         {"type":"bind","source":str(keys/"merchant.public"),"target":"/finance-keys/merchant.public","read_only":True},
@@ -110,7 +124,7 @@ def initialize():
             "image":"atp-jinmi-core:local", "container_name":"jinmi-finance-"+role,
             "networks":{domain:{"ipv4_address":f"172.32.{number}.107"}}, "dns":[f"172.32.{number}.10"],
             "environment":{"ATP_FINANCE_ROLE":role,"ATP_FINANCE_SERVER":f"server-{domain}.{domain}.test:7443",
-                           "ATP_FINANCE_PASSWORD":password_file.read_text(),"ATP_FINANCE_DATA":"/finance",
+                           "ATP_FINANCE_PASSWORD":passwords[role],"ATP_FINANCE_DATA":"/finance",
                            "ATP_MERCHANT_PUBLIC":"/finance-keys/merchant.public", "ATP_MERCHANT_PRIVATE":"/finance-keys/merchant.private",
                            "SSL_CERT_FILE":"/etc/ssl/certs/ca-certificates.crt"},
             "volumes":[{"type":"bind","source":str(certs/"ca.crt"),"target":"/usr/local/share/ca-certificates/atp-ca.crt","read_only":True},

@@ -30,14 +30,15 @@ def message(sender,request,body,nonce="reply-1",task=None):
 @pytest.mark.asyncio
 async def test_quote_correlation_and_restart(hub,tmp_path):
     order=await hub.create(2)
+    quote_nonce=hub.mailbox.send.await_args.kwargs["nonce"]
     book=MerchantBook(tmp_path/"merchant.db",hub.test_key)
     q=book.quote({k:order[k] for k in ("order_id","sku","quantity")},BUYER)
     # A signed, but wrong-sender or wrong-task response must not affect the order.
-    await hub.receive(message(CASHIER,"nonce-1",q[0],task=order["order_id"]))
-    await hub.receive(message(MERCHANT,"nonce-1",q[0],task="another-task"))
+    await hub.receive(message(CASHIER,quote_nonce,q[0],task=order["order_id"]))
+    await hub.receive(message(MERCHANT,quote_nonce,q[0],task="another-task"))
     assert hub.order(order["order_id"])["quotes"]==[]
     for i,envelope in enumerate(q):
-        m=message(MERCHANT,"nonce-1",envelope,nonce=f"q-{i}",task=order["order_id"])
+        m=message(MERCHANT,quote_nonce,envelope,nonce=f"q-{i}",task=order["order_id"])
         await hub.receive(m)
         await hub.receive(m)
     assert hub.order(order["order_id"])["status"]=="AWAITING_AUTHORIZATION"
@@ -49,20 +50,22 @@ async def test_quote_correlation_and_restart(hub,tmp_path):
 @pytest.mark.asyncio
 async def test_complete_hub_payment_and_browser_retry(hub,tmp_path):
     order=await hub.create(2)
+    quote_nonce=hub.mailbox.send.await_args.kwargs["nonce"]
     book=MerchantBook(tmp_path/"merchant.db",hub.test_key)
     q=book.quote({k:order[k] for k in ("order_id","sku","quantity")},BUYER)
     for i,envelope in enumerate(q):
-        await hub.receive(message(MERCHANT,"nonce-1",envelope,nonce=f"q-{i}",task=order["order_id"]))
+        await hub.receive(message(MERCHANT,quote_nonce,envelope,nonce=f"q-{i}",task=order["order_id"]))
     hub.mailbox.send.return_value={"status":"accepted","nonce":"nonce-pay"}
     await hub.pay(order["order_id"])
     sent=hub.mailbox.send.await_args.args[2]
+    pay_nonce=hub.mailbox.send.await_args.kwargs["nonce"]
     ledger=PaymentLedger(tmp_path/"ledger.db",hub.public)
     receipt=ledger.pay(sent,BUYER)
     hub.mailbox.send.return_value={"status":"accepted","nonce":"nonce-statement"}
     bad=copy.deepcopy(receipt);bad["amount_fen"]+=1
-    await hub.receive(message(CASHIER,"nonce-pay",bad,task=order["order_id"]))
+    await hub.receive(message(CASHIER,pay_nonce,bad,task=order["order_id"]))
     assert hub.order(order["order_id"])["status"]=="PAYMENT_PENDING"
-    await hub.receive(message(CASHIER,"nonce-pay",receipt,nonce="good",task=order["order_id"]))
+    await hub.receive(message(CASHIER,pay_nonce,receipt,nonce="good",task=order["order_id"]))
     assert hub.order(order["order_id"])["status"]=="PAID"
     count=hub.mailbox.send.await_count
     await hub.pay(order["order_id"])
